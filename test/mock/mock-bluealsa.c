@@ -46,8 +46,6 @@
 #include "io.h"
 #include "midi.h"
 #include "ofono.h"
-#include "storage.h"
-#include "upower.h"
 #include "shared/bluetooth.h"
 #include "shared/bluetooth-a2dp.h"
 #include "shared/bluetooth-hfp.h"
@@ -56,6 +54,8 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 #include "shared/sine.h"
+#include "storage.h"
+#include "upower.h"
 #include "utils.h"
 
 #include "service.h"
@@ -108,14 +108,14 @@ static const a2dp_faststream_t config_faststream_44100_16000 = {
 };
 #endif
 
-static void *mock_dec(struct ba_transport_pcm *t_pcm) {
+static void * mock_dec(struct ba_transport_pcm * t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
 	const unsigned int channels = t_pcm->channels;
 	const unsigned int rate = t_pcm->rate;
-	struct pollfd fds[1] = {{ t_pcm->pipe[0], POLLIN, 0 }};
+	struct pollfd fds[1] = { { t_pcm->pipe[0], POLLIN, 0 } };
 	struct asrsync asrs = { .frames = 0 };
 	int16_t buffer[1024 * 2];
 	size_t x = 0;
@@ -165,13 +165,13 @@ static void *mock_dec(struct ba_transport_pcm *t_pcm) {
 	return NULL;
 }
 
-void *a2dp_sbc_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
-void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
-void *a2dp_aac_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
-void *a2dp_aptx_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
-void *a2dp_aptx_hd_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
-void *a2dp_fs_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
-void *sco_dec_thread(struct ba_transport_pcm *t_pcm) { return mock_dec(t_pcm); }
+void * a2dp_sbc_dec_thread(struct ba_transport_pcm * t_pcm) { return mock_dec(t_pcm); }
+void * a2dp_mpeg_dec_thread(struct ba_transport_pcm * t_pcm) { return mock_dec(t_pcm); }
+void * a2dp_aac_dec_thread(struct ba_transport_pcm * t_pcm) { return mock_dec(t_pcm); }
+void * a2dp_aptx_dec_thread(struct ba_transport_pcm * t_pcm) { return mock_dec(t_pcm); }
+void * a2dp_aptx_hd_dec_thread(struct ba_transport_pcm * t_pcm) { return mock_dec(t_pcm); }
+void * a2dp_fs_dec_thread(struct ba_transport_pcm * t_pcm) { return mock_dec(t_pcm); }
+void * sco_dec_thread(struct ba_transport_pcm * t_pcm) { return mock_dec(t_pcm); }
 
 static struct ba_adapter * mock_adapter_new(int dev_id) {
 	struct ba_adapter * a;
@@ -210,23 +210,23 @@ static struct ba_transport * mock_transport_new_a2dp(BlueALSAMockServicePriv * s
 	sprintf(transport_path, "%s/sep/fd%u", d->bluez_dbus_path, index);
 
 	g_autoptr(GAsyncQueue) queue = g_async_queue_new();
-	mock_bluez_service_device_media_set_configuration(self->bluez,
-			d->bluez_dbus_path, transport_path, uuid, sep->config.codec_id,
-			configuration, sep->config.caps_size, queue);
+	mock_bluez_service_device_media_set_configuration(self->bluez, d->bluez_dbus_path,
+	                                                  transport_path, uuid, sep->config.codec_id,
+	                                                  configuration, sep->config.caps_size, queue);
 	g_async_queue_pop(queue);
 
 	char device[18];
 	ba2str(&d->addr, device);
 	fprintf(stderr, "BLUEALSA_READY=A2DP:%s:%s\n", device,
-			a2dp_codec_to_string(sep->config.codec_id));
+	        a2dp_codec_to_string(sep->config.codec_id));
 
-	struct ba_transport *t;
+	struct ba_transport * t;
 	assert((t = ba_transport_lookup(d, transport_path)) != NULL);
 	return t;
 }
 
 /* SCO acquisition override for testing purposes. */
-int transport_acquire_bt_sco(struct ba_transport *t) {
+int transport_acquire_bt_sco(struct ba_transport * t) {
 
 	int bt_fds[2];
 	assert(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, bt_fds) == 0);
@@ -252,8 +252,8 @@ error_code_t sco_setup_connection_dispatcher(G_GNUC_UNUSED struct ba_adapter * a
 	return ERROR_CODE_OK;
 }
 
-static struct ba_transport *mock_transport_new_sco(BlueALSAMockServicePriv * self,
-		struct ba_device *d, const char *uuid) {
+static struct ba_transport * mock_transport_new_sco(BlueALSAMockServicePriv * self,
+		struct ba_device * d, const char * uuid) {
 
 	usleep(self->p.fuzzing_ms * 1000);
 
@@ -261,7 +261,7 @@ static struct ba_transport *mock_transport_new_sco(BlueALSAMockServicePriv * sel
 	mock_bluez_service_device_profile_new_connection(self->bluez, d->bluez_dbus_path, uuid, queue);
 	g_async_queue_pop(queue);
 
-	struct ba_transport *t;
+	struct ba_transport * t;
 	assert((t = ba_transport_lookup(d, d->bluez_dbus_path)) != NULL);
 
 	if (t->profile & BA_TRANSPORT_PROFILE_MASK_HFP) {
@@ -285,19 +285,19 @@ static struct ba_transport *mock_transport_new_sco(BlueALSAMockServicePriv * sel
 	char device[18];
 	ba2str(&d->addr, device);
 	fprintf(stderr, "BLUEALSA_READY=SCO:%s:%s\n", device,
-			hfp_codec_to_string(ba_transport_get_codec(t)));
+	        hfp_codec_to_string(ba_transport_get_codec(t)));
 
 	return t;
 }
 
 #if ENABLE_MIDI
 static struct ba_transport * mock_transport_new_midi(BlueALSAMockServicePriv * self,
-		const char *path) {
+		const char * path) {
 
 	usleep(self->p.fuzzing_ms * 1000);
 
-	struct ba_device *d = ba_device_lookup(self->adapter, &self->adapter->hci.bdaddr);
-	struct ba_transport *t = ba_transport_lookup(d, path);
+	struct ba_device * d = ba_device_lookup(self->adapter, &self->adapter->hci.bdaddr);
+	struct ba_transport * t = ba_transport_lookup(d, path);
 
 	int fds[2];
 	socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, fds);
@@ -334,45 +334,50 @@ void mock_bluealsa_service_run(BlueALSAMockService * srv, GAsyncQueue * sync) {
 
 	/* Create remote SEP on device 1, so we could test SEP configuration. */
 	mock_bluez_service_device_add_media_endpoint(self->bluez, MOCK_BLUEZ_DEVICE_1_PATH,
-			MOCK_BLUEZ_DEVICE_1_SEP_PATH, BT_UUID_A2DP_SINK, a2dp_sbc_sink.config.codec_id,
-			&a2dp_sbc_sink.config.capabilities, a2dp_sbc_sink.config.caps_size);
+	                                             MOCK_BLUEZ_DEVICE_1_SEP_PATH, BT_UUID_A2DP_SINK,
+	                                             a2dp_sbc_sink.config.codec_id,
+	                                             &a2dp_sbc_sink.config.capabilities,
+	                                             a2dp_sbc_sink.config.caps_size);
 
 #if ENABLE_ASHA
 	const uint8_t sync_id[8] = { 0xF1, 0x05, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66 };
 	/* Create ASHA transport on device 1 for testing ASHA support. */
 	mock_bluez_service_device_add_asha_transport(self->bluez, MOCK_BLUEZ_DEVICE_1_PATH,
-			MOCK_BLUEZ_DEVICE_1_ASHA_PATH, "right", false, sync_id);
+	                                             MOCK_BLUEZ_DEVICE_1_ASHA_PATH, "right", false,
+	                                             sync_id);
 #endif
 
-	GPtrArray *tt = g_ptr_array_new();
+	GPtrArray * tt = g_ptr_array_new();
 
 	if (config.profile.a2dp_source) {
 
 		if (a2dp_sbc_source.enabled)
 			g_ptr_array_add(tt, mock_transport_new_a2dp(self, self->device_1, BT_UUID_A2DP_SOURCE,
-						&a2dp_sbc_source, &config_sbc_44100_stereo));
+			                                            &a2dp_sbc_source, &config_sbc_44100_stereo));
 
 #if ENABLE_APTX
 		if (a2dp_aptx_source.enabled)
 			g_ptr_array_add(tt, mock_transport_new_a2dp(self, self->device_2, BT_UUID_A2DP_SOURCE,
-						&a2dp_aptx_source, &config_aptx_44100_stereo));
+			                                            &a2dp_aptx_source, &config_aptx_44100_stereo));
 		else
 #endif
 #if ENABLE_APTX_HD
 		if (a2dp_aptx_hd_source.enabled)
 			g_ptr_array_add(tt, mock_transport_new_a2dp(self, self->device_2, BT_UUID_A2DP_SOURCE,
-						&a2dp_aptx_hd_source, &config_aptx_hd_48000_stereo));
+			                                            &a2dp_aptx_hd_source,
+			                                            &config_aptx_hd_48000_stereo));
 		else
 #endif
 #if ENABLE_FASTSTREAM
 		if (a2dp_faststream_source.enabled)
 			g_ptr_array_add(tt, mock_transport_new_a2dp(self, self->device_2, BT_UUID_A2DP_SOURCE,
-						&a2dp_faststream_source, &config_faststream_44100_16000));
+			                                            &a2dp_faststream_source,
+			                                            &config_faststream_44100_16000));
 		else
 #endif
 		if (a2dp_sbc_source.enabled)
 			g_ptr_array_add(tt, mock_transport_new_a2dp(self, self->device_2, BT_UUID_A2DP_SOURCE,
-						&a2dp_sbc_source, &config_sbc_44100_stereo));
+			                                            &a2dp_sbc_source, &config_sbc_44100_stereo));
 
 	}
 
@@ -381,28 +386,29 @@ void mock_bluealsa_service_run(BlueALSAMockService * srv, GAsyncQueue * sync) {
 #if ENABLE_APTX
 		if (a2dp_aptx_sink.enabled)
 			g_ptr_array_add(tt, mock_transport_new_a2dp(self, self->device_1, BT_UUID_A2DP_SINK,
-						&a2dp_aptx_sink, &config_aptx_44100_stereo));
+			                                            &a2dp_aptx_sink, &config_aptx_44100_stereo));
 		else
 #endif
 #if ENABLE_APTX_HD
 		if (a2dp_aptx_hd_sink.enabled)
 			g_ptr_array_add(tt, mock_transport_new_a2dp(self, self->device_1, BT_UUID_A2DP_SINK,
-						&a2dp_aptx_hd_sink, &config_aptx_hd_48000_stereo));
+			                                            &a2dp_aptx_hd_sink,
+			                                            &config_aptx_hd_48000_stereo));
 		else
 #endif
 		if (a2dp_sbc_sink.enabled)
 			g_ptr_array_add(tt, mock_transport_new_a2dp(self, self->device_1, BT_UUID_A2DP_SINK,
-						&a2dp_sbc_sink, &config_sbc_44100_stereo));
+			                                            &a2dp_sbc_sink, &config_sbc_44100_stereo));
 
 		if (a2dp_sbc_sink.enabled)
 			g_ptr_array_add(tt, mock_transport_new_a2dp(self, self->device_2, BT_UUID_A2DP_SINK,
-						&a2dp_sbc_sink, &config_sbc_44100_stereo));
+			                                            &a2dp_sbc_sink, &config_sbc_44100_stereo));
 
 	}
 
 	if (config.profile.hfp_ag) {
 
-		struct ba_transport *t;
+		struct ba_transport * t;
 		g_ptr_array_add(tt, t = mock_transport_new_sco(self, self->device_1, BT_UUID_HFP_AG));
 
 		/* In case of fuzzing, select available codecs

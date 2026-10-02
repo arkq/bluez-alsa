@@ -20,24 +20,24 @@
 #include "shared/rt.h"
 
 void delay_report_init(
-		struct delay_report *dr,
-		struct ba_dbus_ctx *dbus_ctx,
-		struct ba_pcm *ba_pcm) {
+		struct delay_report * dr,
+		struct ba_dbus_ctx * dbus_ctx,
+		struct ba_pcm * ba_pcm) {
 	memset(dr, 0, sizeof(*dr));
 	dr->dbus_ctx = dbus_ctx;
 	dr->ba_pcm = ba_pcm;
 }
 
 void delay_report_reset(
-		struct delay_report *dr) {
+		struct delay_report * dr) {
 	memset(dr->values, 0, sizeof(dr->values));
 	dr->values_i = 0;
 }
 
 bool delay_report_update(
-		struct delay_report *dr,
+		struct delay_report * dr,
 		snd_pcm_uframes_t delay,
-		DBusError *err) {
+		DBusError * err) {
 
 	const size_t num_values = ARRAYSIZE(dr->values);
 	dr->values[dr->values_i % num_values] = delay;
@@ -61,7 +61,7 @@ bool delay_report_update(
 
 	const int client_delay = delay_frames_avg * 10000 / dr->ba_pcm->rate;
 	if (difftimespec(&ts_now, &ts_delay, &ts_delay) >= 0 ||
-			abs(client_delay - dr->ba_pcm->client_delay) < 100 /* 10ms */)
+	    abs(client_delay - dr->ba_pcm->client_delay) < 100 /* 10ms */)
 		return true;
 
 	dr->update_ts = ts_now;

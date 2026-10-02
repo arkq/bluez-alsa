@@ -21,7 +21,11 @@ documentation. In particular:
 
 The commit message for each commit that you make to your branch should include
 a clear description of the change introduced by that commit. That will make the
-change history log easier to follow when the PR is merged.
+change history log easier to follow when the PR is merged. Also, it should
+follow the 50/72 line length rule.
+
+The coding style is enforced by the `.uncrustify` configuration file. It is
+recommended to run the `uncrustify` tool on all changes before submitting a PR.
 
 If the PR is for a new feature, extensive change or non-trivial bug fix please
 if possible add a simple unit test. If that is not possible then please include

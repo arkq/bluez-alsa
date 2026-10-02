@@ -22,7 +22,7 @@ ssize_t bin2hex(const void * restrict bin, char * restrict hex, size_t n) {
 	static const char map_bin2hex[] = "0123456789abcdef";
 
 	for (size_t i = 0; i < n; i++) {
-		const unsigned char *src = bin;
+		const unsigned char * src = bin;
 		hex[i * 2] = map_bin2hex[src[i] >> 4];
 		hex[i * 2 + 1] = map_bin2hex[src[i] & 0x0f];
 	}
@@ -53,7 +53,7 @@ ssize_t hex2bin(const char * restrict hex, void * restrict bin, size_t n) {
 		return errno = EINVAL, -1;
 
 	n /= 2;
-	unsigned char *out = bin;
+	unsigned char * out = bin;
 	for (size_t i = 0; i < n; i++) {
 		const unsigned char c1 = hex[i * 2];
 		const unsigned char c2 = hex[i * 2 + 1];

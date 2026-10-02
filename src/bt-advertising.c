@@ -15,13 +15,13 @@
 #include <string.h>
 
 #include <gio/gio.h>
-#include <glib-object.h>
 #include <glib.h>
+#include <glib-object.h>
 
 #include "ba-adapter.h"
 #include "ba-config.h"
-#include "bluez-iface.h"
 #include "bluez.h"
+#include "bluez-iface.h"
 #include "dbus.h"
 #include "error.h"
 #include "shared/defs.h"
@@ -100,7 +100,8 @@ static GVariant * advertisement_iface_get_property(
 		g_variant_builder_init(&builder, G_VARIANT_TYPE_VARDICT);
 		if (adv->service_data_len > 0) {
 			g_variant_builder_add(&builder, "{sv}", adv->uuid,
-					g_variant_new_fixed_byte_array(adv->service_data, adv->service_data_len));
+			                      g_variant_new_fixed_byte_array(adv->service_data,
+			                                                     adv->service_data_len));
 		}
 		return g_variant_builder_end(&builder);
 	}
@@ -191,8 +192,8 @@ static void register_advertisement_finish(
 
 	g_autoptr(GDBusMessage) rep;
 	g_autoptr(GError) err = NULL;
-	if ((rep = g_dbus_connection_send_message_with_reply_finish(
-					G_DBUS_CONNECTION(source), result, &err)) != NULL)
+	if ((rep = g_dbus_connection_send_message_with_reply_finish(G_DBUS_CONNECTION(source), result,
+	                                                            &err)) != NULL)
 		g_dbus_message_to_gerror(rep, &err);
 
 	g_autoptr(GTask) task;
@@ -228,7 +229,8 @@ void bluetooth_advertising_register(
 
 	GDBusMessage * msg;
 	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE, adapter->bluez_dbus_path,
-			BLUEZ_IFACE_LE_ADVERTISING_MANAGER, "RegisterAdvertisement");
+	                                     BLUEZ_IFACE_LE_ADVERTISING_MANAGER,
+	                                     "RegisterAdvertisement");
 	g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", adv->path, NULL));
 
 	adv->adapter = ba_adapter_ref(adapter);
@@ -237,8 +239,8 @@ void bluetooth_advertising_register(
 
 	debug("Registering BLE advertisement [%s]: %s", adv->name, adv->path);
 	g_dbus_connection_send_message_with_reply(config.dbus, msg,
-			G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL,
-			register_advertisement_finish, g_object_ref(adv));
+	                                          G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL,
+	                                          register_advertisement_finish, g_object_ref(adv));
 
 	g_object_unref(msg);
 
@@ -261,14 +263,16 @@ void bluetooth_advertising_unregister_sync(
 
 	g_autoptr(GDBusMessage) msg;
 	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE, adv->adapter->bluez_dbus_path,
-			BLUEZ_IFACE_LE_ADVERTISING_MANAGER, "UnregisterAdvertisement");
+	                                     BLUEZ_IFACE_LE_ADVERTISING_MANAGER,
+	                                     "UnregisterAdvertisement");
 	g_dbus_message_set_body(msg, g_variant_new("(o)", adv->path));
 
 	g_autoptr(GDBusMessage) rep;
 	g_autoptr(GError) err = NULL;
 	debug("Unregistering BLE advertisement [%s]: %s", adv->name, adv->path);
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, 1000, NULL, NULL, NULL)) != NULL)
+	                                                          G_DBUS_SEND_MESSAGE_FLAGS_NONE, 1000,
+	                                                          NULL, NULL, NULL)) != NULL)
 		g_dbus_message_to_gerror(rep, &err);
 
 	if (err != NULL)

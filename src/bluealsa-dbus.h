@@ -14,8 +14,8 @@
 
 #include <glib.h>
 
-#include "ba-rfcomm.h"
 #include "ba-device.h"
+#include "ba-rfcomm.h"
 #include "ba-transport-pcm.h"
 #include "error.h"
 
@@ -34,8 +34,8 @@
 #define BA_DBUS_RFCOMM_UPDATE_FEATURES (1 << 0)
 #define BA_DBUS_RFCOMM_UPDATE_BATTERY  (1 << 1)
 
-GVariant *ba_variant_new_device_path(const struct ba_device *d);
-GVariant *ba_variant_new_device_battery(const struct ba_device *d);
+GVariant * ba_variant_new_device_path(const struct ba_device * d);
+GVariant * ba_variant_new_device_battery(const struct ba_device * d);
 
 void bluealsa_dbus_register(void);
 

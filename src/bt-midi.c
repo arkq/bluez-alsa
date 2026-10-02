@@ -20,8 +20,8 @@
 
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
-#include <glib-object.h>
 #include <glib.h>
+#include <glib-object.h>
 
 #include <bluetooth/bluetooth.h> /* IWYU pragma: keep */
 #include <bluetooth/hci.h>
@@ -34,10 +34,10 @@
 #include "bt-advertising.h"
 #include "bt-gatt.h"
 #include "midi.h"
-#include "utils.h"
 #include "shared/bluetooth.h"
 #include "shared/bluetooth-midi.h"
 #include "shared/log.h"
+#include "utils.h"
 
 /**
  * Bluetooth MIDI based on BlueZ GATT application. */
@@ -97,13 +97,13 @@ static struct ba_transport * bluetooth_midi_transport_new(
 	struct ba_transport * t = NULL;
 
 	if ((d = ba_device_lookup(a, &a->hci.bdaddr)) == NULL &&
-			(d = ba_device_new(a, &a->hci.bdaddr)) == NULL) {
+	    (d = ba_device_new(a, &a->hci.bdaddr)) == NULL) {
 		error("Couldn't create new device: %s", strerror(errno));
 		goto fail;
 	}
 
 	if ((t = ba_transport_lookup(d, midi->path)) == NULL &&
-			(t = ba_transport_new_midi(d, BA_TRANSPORT_PROFILE_MIDI, ":0", midi->path)) == NULL) {
+	    (t = ba_transport_new_midi(d, BA_TRANSPORT_PROFILE_MIDI, ":0", midi->path)) == NULL) {
 		error("Couldn't create new transport: %s", strerror(errno));
 		goto fail;
 	}
@@ -174,8 +174,8 @@ static bool midi_characteristic_acquire_write(
 	return true;
 
 fail:
-	g_dbus_method_invocation_return_dbus_error(inv,
-			BLUEZ_ERROR_FAILED, "Unable to acquire write access");
+	g_dbus_method_invocation_return_dbus_error(inv, BLUEZ_ERROR_FAILED,
+	                                           "Unable to acquire write access");
 	return false;
 }
 
@@ -220,8 +220,8 @@ static bool midi_characteristic_acquire_notify(
 	/* Setup IO watch for checking HUP condition on the socket. HUP means
 	 * that the client does not want to receive notifications anymore. */
 	GIOChannel * ch = g_io_channel_unix_raw_new(dup(fds[0]));
-	midi->notify_watch_hup = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT,
-			G_IO_HUP, midi_characteristic_release_notify, midi, NULL);
+	midi->notify_watch_hup = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT, G_IO_HUP,
+	                                                midi_characteristic_release_notify, midi, NULL);
 	g_io_channel_unref(ch);
 
 	GVariant * params = g_variant_new("(hq)", 0, mtu);
@@ -232,8 +232,8 @@ static bool midi_characteristic_acquire_notify(
 	return true;
 
 fail:
-	g_dbus_method_invocation_return_dbus_error(inv,
-			BLUEZ_ERROR_FAILED, "Unable to acquire notification");
+	g_dbus_method_invocation_return_dbus_error(inv, BLUEZ_ERROR_FAILED,
+	                                           "Unable to acquire notification");
 	return false;
 }
 
@@ -279,23 +279,23 @@ BluetoothMIDI * bluetooth_midi_new(
 	chr = bluetooth_gatt_characteristic_new("/char", BT_UUID_MIDI_CHAR);
 	bluetooth_gatt_application_add_service_characteristic(midi->app, srv, chr);
 
-	const char * const flags[] = {
-		"read", "write", "write-without-response", "notify", NULL };
+	const char * const flags[] = { "read", "write", "write-without-response", "notify", NULL };
 	bluetooth_gatt_characteristic_set_flags(chr, flags);
 
-	bluetooth_gatt_characteristic_set_read_callback(chr,
-			midi_characteristic_read_value, midi);
+	bluetooth_gatt_characteristic_set_read_callback(chr, midi_characteristic_read_value, midi);
 	bluetooth_gatt_characteristic_set_acquire_notify_callback(chr,
-			midi_characteristic_acquire_notify, midi);
+	                                                          midi_characteristic_acquire_notify,
+	                                                          midi);
 	bluetooth_gatt_characteristic_set_acquire_write_callback(chr,
-			midi_characteristic_acquire_write, midi);
+	                                                         midi_characteristic_acquire_write,
+	                                                         midi);
 
 	if (config.midi.advertise) {
 		char adv_path[256];
 		snprintf(adv_path, sizeof(adv_path), "%s/adv", path);
-		midi->adv = bluetooth_advertising_new(
-				bluetooth_gatt_application_get_object_manager_server(midi->app),
-				adv_path, BT_UUID_MIDI, config.midi.name);
+		midi->adv =
+			bluetooth_advertising_new(bluetooth_gatt_application_get_object_manager_server(midi->app),
+			                          adv_path, BT_UUID_MIDI, config.midi.name);
 	}
 
 	bluetooth_gatt_application_set_connection(midi->app, config.dbus);

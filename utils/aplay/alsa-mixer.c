@@ -14,37 +14,37 @@
 
 #include "shared/log.h"
 
-static int alsa_mixer_elem_callback(snd_mixer_elem_t *elem, unsigned int mask) {
-	struct alsa_mixer *mixer = snd_mixer_elem_get_callback_private(elem);
+static int alsa_mixer_elem_callback(snd_mixer_elem_t * elem, unsigned int mask) {
+	struct alsa_mixer * mixer = snd_mixer_elem_get_callback_private(elem);
 	if (mask == SND_CTL_EVENT_MASK_REMOVE)
 		/* The element has been removed and cannot
 		 * now be used - we must close the mixer. */
-		 return -1;
+		return -1;
 	if (mask & SND_CTL_EVENT_MASK_VALUE)
 		mixer->event_handler(mixer->event_handler_userdata);
 	return 0;
 }
 
 void alsa_mixer_init(
-		struct alsa_mixer *mixer,
+		struct alsa_mixer * mixer,
 		alsa_mixer_event_handler handler,
-		void *userdata) {
+		void * userdata) {
 	memset(mixer, 0, sizeof(*mixer));
 	mixer->event_handler = handler;
 	mixer->event_handler_userdata = userdata;
 }
 
 int alsa_mixer_open(
-		struct alsa_mixer *mixer,
-		const char *dev_name,
-		const char *elem_name,
+		struct alsa_mixer * mixer,
+		const char * dev_name,
+		const char * elem_name,
 		unsigned int elem_idx,
-		char **msg) {
+		char ** msg) {
 
 	char buf[256];
 	int err;
 
-	snd_mixer_selem_id_t *id;
+	snd_mixer_selem_id_t * id;
 	snd_mixer_selem_id_alloca(&id);
 	snd_mixer_selem_id_set_name(id, elem_name);
 	snd_mixer_selem_id_set_index(id, elem_idx);
@@ -75,16 +75,18 @@ int alsa_mixer_open(
 
 	/* To determine whether a control has a dB scale defined, we fetch the
 	 * dB scale limits and check that they are valid. */
-	mixer->has_db_scale = (snd_mixer_selem_get_playback_dB_range(mixer->elem,
-					&mixer->volume_min_value, &mixer->volume_max_value) == 0 &&
-					mixer->volume_min_value < mixer->volume_max_value);
+	mixer->has_db_scale = snd_mixer_selem_get_playback_dB_range(mixer->elem,
+	                                                            &mixer->volume_min_value,
+	                                                            &mixer->volume_max_value) == 0 &&
+	                      mixer->volume_min_value < mixer->volume_max_value;
 
 	/* For controls that lack a dB scale, we assume a simple linear scale
 	 * provided that we can obtain valid scale limits. */
 	if (!mixer->has_db_scale &&
-			(((err = snd_mixer_selem_get_playback_volume_range(mixer->elem,
-					&mixer->volume_min_value, &mixer->volume_max_value)) != 0) ||
-					mixer->volume_min_value >= mixer->volume_max_value)) {
+	    (((err = snd_mixer_selem_get_playback_volume_range(mixer->elem,
+	                                                       &mixer->volume_min_value,
+	                                                       &mixer->volume_max_value)) != 0) ||
+	     mixer->volume_min_value >= mixer->volume_max_value)) {
 		snprintf(buf, sizeof(buf), "Couldn't get playback volume range: %s", snd_strerror(err));
 		if (err == 0)
 			err = EIO;
@@ -104,7 +106,7 @@ fail:
 }
 
 void alsa_mixer_close(
-		struct alsa_mixer *mixer) {
+		struct alsa_mixer * mixer) {
 	if (mixer->mixer != NULL)
 		snd_mixer_close(mixer->mixer);
 	mixer->mixer = NULL;
@@ -112,12 +114,12 @@ void alsa_mixer_close(
 }
 
 int alsa_mixer_get_volume(
-		const struct alsa_mixer *mixer,
+		const struct alsa_mixer * mixer,
 		unsigned int vmax,
-		unsigned int *volume,
-		bool *muted) {
+		unsigned int * volume,
+		bool * muted) {
 
-	snd_mixer_elem_t *elem = mixer->elem;
+	snd_mixer_elem_t * elem = mixer->elem;
 	long long volume_sum = 0;
 	bool alsa_muted = true;
 
@@ -143,7 +145,7 @@ int alsa_mixer_get_volume(
 
 		/* Mute switch is an optional feature for a mixer element. */
 		if (mixer->has_mute_switch &&
-				(err = snd_mixer_selem_get_playback_switch(elem, ch, &ch_switch)) != 0) {
+		    (err = snd_mixer_selem_get_playback_switch(elem, ch, &ch_switch)) != 0) {
 			error("Couldn't get ALSA mixer playback switch: %s", snd_strerror(err));
 			return -1;
 		}
@@ -186,7 +188,7 @@ int alsa_mixer_get_volume(
 }
 
 int alsa_mixer_set_volume(
-		struct alsa_mixer *mixer,
+		struct alsa_mixer * mixer,
 		unsigned int vmax,
 		unsigned int volume,
 		bool muted) {
@@ -213,7 +215,7 @@ int alsa_mixer_set_volume(
 
 	/* Mute switch is an optional feature for a mixer element. */
 	if (mixer->has_mute_switch &&
-			(err = snd_mixer_selem_set_playback_switch_all(mixer->elem, !muted)) != 0) {
+	    (err = snd_mixer_selem_set_playback_switch_all(mixer->elem, !muted)) != 0) {
 		error("Couldn't set ALSA mixer playback mute switch: %s", snd_strerror(err));
 		return -1;
 	}

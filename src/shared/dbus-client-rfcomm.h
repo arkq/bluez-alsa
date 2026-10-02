@@ -24,25 +24,25 @@ struct ba_rfcomm_props {
 	/* BlueALSA transport type */
 	char transport[7];
 	/* remote device supported features */
-	char **features;
+	char ** features;
 	size_t features_len;
 	/* remote device battery level */
 	int battery;
 };
 
 dbus_bool_t ba_dbus_rfcomm_props_get(
-		struct ba_dbus_ctx *ctx,
-		const char *rfcomm_path,
-		struct ba_rfcomm_props *props,
-		DBusError *error);
+		struct ba_dbus_ctx * ctx,
+		const char * rfcomm_path,
+		struct ba_rfcomm_props * props,
+		DBusError * error);
 
 void ba_dbus_rfcomm_props_free(
-		struct ba_rfcomm_props *props);
+		struct ba_rfcomm_props * props);
 
 dbus_bool_t ba_dbus_rfcomm_open(
-		struct ba_dbus_ctx *ctx,
-		const char *rfcomm_path,
-		int *fd_rfcomm,
-		DBusError *error);
+		struct ba_dbus_ctx * ctx,
+		const char * rfcomm_path,
+		int * fd_rfcomm,
+		DBusError * error);
 
 #endif

@@ -38,7 +38,7 @@ void g_object_list_free(GObjectList * list) {
  * @param path BlueZ D-Bus object path.
  * @return On success this function returns ID of the HCI device.
  *   Otherwise, -1 is returned. */
-int g_dbus_bluez_object_path_to_hci_dev_id(const char *path) {
+int g_dbus_bluez_object_path_to_hci_dev_id(const char * path) {
 	if ((path = strstr(path, "/hci")) == NULL || path[4] == '\0')
 		return -1;
 	return atoi(&path[4]);
@@ -51,7 +51,7 @@ int g_dbus_bluez_object_path_to_hci_dev_id(const char *path) {
  * @param addr Address where the parsed BT address will be stored.
  * @return On success this function returns pointer to the BT address. On
  *   error, NULL is returned. */
-bdaddr_t *g_dbus_bluez_object_path_to_bdaddr(const char *path, bdaddr_t *addr) {
+bdaddr_t * g_dbus_bluez_object_path_to_bdaddr(const char * path, bdaddr_t * addr) {
 
 	char tmp[sizeof("00:00:00:00:00:00")] = { 0 };
 
@@ -75,7 +75,7 @@ bdaddr_t *g_dbus_bluez_object_path_to_bdaddr(const char *path, bdaddr_t *addr) {
  * @return Pointer to the object path string. */
 char * g_variant_sanitize_object_path(char * path) {
 
-	char *tmp = path - 1;
+	char * tmp = path - 1;
 
 	while (*(++tmp) != '\0')
 		if (!(*tmp == '/' || isalnum(*tmp)))
@@ -106,7 +106,7 @@ bool g_variant_validate_value(GVariant * value, const GVariantType * type,
 	if (g_variant_is_of_type(value, type))
 		return true;
 	warn("Invalid variant type: %s: %s != %s", name,
-			g_variant_get_type_string(value), (const char *)type);
+	     g_variant_get_type_string(value), (const char *)type);
 	return false;
 }
 
@@ -151,8 +151,8 @@ GSource * g_io_create_watch_full(GIOChannel * channel, int priority,
  *
  * @param v A pointer to bdaddr_t structure.
  * @return Hash value compatible with GHashTable. */
-unsigned int g_bdaddr_hash(const void *v) {
-	const uint16_t *b = (uint16_t *)((const bdaddr_t *)v)->b;
+unsigned int g_bdaddr_hash(const void * v) {
+	const uint16_t * b = (uint16_t *)((const bdaddr_t *)v)->b;
 	return (b[0] | ((uint32_t)b[1]) << 16) * b[2];
 }
 
@@ -162,7 +162,7 @@ unsigned int g_bdaddr_hash(const void *v) {
  * @param v1 A pointer to first bdaddr_t structure.
  * @param v2 A pointer to second bdaddr_t structure.
  * @return Comparision value compatible with GHashTable. */
-gboolean g_bdaddr_equal(const void *v1, const void *v2) {
+gboolean g_bdaddr_equal(const void * v1, const void * v2) {
 	return bacmp(v1, v2) == 0;
 }
 

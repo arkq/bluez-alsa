@@ -15,21 +15,21 @@
 #include <bluetooth/hci.h>
 
 #include <gio/gio.h>
-#include <glib-object.h>
 #include <glib.h>
+#include <glib-object.h>
 
 #include "ba-adapter.h"
+#include "ba-config.h"
 #include "ba-device.h"
 #include "ba-rfcomm.h"
 #include "ba-transport.h"
-#include "ba-config.h"
 #include "dbus.h"
-#include "utils.h"
 #include "shared/log.h"
+#include "utils.h"
 
-static void upower_signal_display_device_changed(GDBusConnection *conn, const char *sender,
-		const char *path, const char *interface_, const char *signal, GVariant *params,
-		void *userdata) {
+static void upower_signal_display_device_changed(GDBusConnection * conn, const char * sender,
+		const char * path, const char * interface_, const char * signal, GVariant * params,
+		void * userdata) {
 	debug("Signal: %s.%s()", interface_, signal);
 	(void)conn;
 	(void)sender;
@@ -39,21 +39,21 @@ static void upower_signal_display_device_changed(GDBusConnection *conn, const ch
 	(void)userdata;
 
 	bool updated = false;
-	GVariantIter *properties = NULL;
-	const char *interface;
-	const char *property;
-	GVariant *value;
+	GVariantIter * properties = NULL;
+	const char * interface;
+	const char * property;
+	GVariant * value;
 
 	g_variant_get(params, "(&sa{sv}as)", &interface, &properties, NULL);
 	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
 
 		if (strcmp(property, "IsPresent") == 0 &&
-				g_variant_validate_value(value, G_VARIANT_TYPE_BOOLEAN, property)) {
+		    g_variant_validate_value(value, G_VARIANT_TYPE_BOOLEAN, property)) {
 			config.battery.available = g_variant_get_boolean(value);
 			updated = true;
 		}
 		else if (strcmp(property, "Percentage") == 0 &&
-				g_variant_validate_value(value, G_VARIANT_TYPE_DOUBLE, property)) {
+		         g_variant_validate_value(value, G_VARIANT_TYPE_DOUBLE, property)) {
 			config.battery.level = lround(g_variant_get_double(value));
 			updated = true;
 		}
@@ -64,9 +64,9 @@ static void upower_signal_display_device_changed(GDBusConnection *conn, const ch
 	if (updated) {
 
 		GHashTableIter iter_d, iter_t;
-		struct ba_adapter *a;
-		struct ba_device *d;
-		struct ba_transport *t;
+		struct ba_adapter * a;
+		struct ba_device * d;
+		struct ba_transport * t;
 
 		/* find every RFCOMM profile and send update battery signal */
 		for (size_t i = 0; i < HCI_MAX_DEV; i++) {
@@ -74,12 +74,12 @@ static void upower_signal_display_device_changed(GDBusConnection *conn, const ch
 				continue;
 			pthread_mutex_lock(&a->devices_mutex);
 			g_hash_table_iter_init(&iter_d, a->devices);
-			while (g_hash_table_iter_next(&iter_d, NULL, (gpointer)&d)) {
+			while (g_hash_table_iter_next(&iter_d, NULL, (void *)&d)) {
 				pthread_mutex_lock(&d->transports_mutex);
 				g_hash_table_iter_init(&iter_t, d->transports);
-				while (g_hash_table_iter_next(&iter_t, NULL, (gpointer)&t))
+				while (g_hash_table_iter_next(&iter_t, NULL, (void *)&t))
 					if (BA_TRANSPORT_PROFILE_IS_SCO(t) &&
-							t->sco.rfcomm != NULL)
+					    t->sco.rfcomm != NULL)
 						ba_rfcomm_send_signal(t->sco.rfcomm, BA_RFCOMM_SIGNAL_UPDATE_BATTERY);
 				pthread_mutex_unlock(&d->transports_mutex);
 			}
@@ -96,9 +96,10 @@ static void upower_signal_display_device_changed(GDBusConnection *conn, const ch
  * Subscribe to UPower service signals. */
 static void upower_subscribe_signals(void) {
 
-	g_dbus_connection_signal_subscribe(config.dbus, UPOWER_SERVICE,
-			DBUS_IFACE_PROPERTIES, "PropertiesChanged", UPOWER_PATH_DISPLAY_DEVICE,
-			NULL, G_DBUS_SIGNAL_FLAGS_NONE, upower_signal_display_device_changed, NULL, NULL);
+	g_dbus_connection_signal_subscribe(config.dbus, UPOWER_SERVICE, DBUS_IFACE_PROPERTIES,
+	                                   "PropertiesChanged", UPOWER_PATH_DISPLAY_DEVICE,
+	                                   NULL, G_DBUS_SIGNAL_FLAGS_NONE,
+	                                   upower_signal_display_device_changed, NULL, NULL);
 
 }
 
@@ -107,7 +108,7 @@ static void upower_get_is_present_finish(GObject * source, GAsyncResult * result
 	(void)userdata;
 
 	GVariant * property;
-	GError *err = NULL;
+	GError * err = NULL;
 
 	GDBusConnection * conn = G_DBUS_CONNECTION(source);
 	if ((property = g_dbus_get_property_finish(conn, result, &err)) == NULL) {
@@ -126,7 +127,7 @@ static void upower_get_percentage_finish(GObject * source, GAsyncResult * result
 	(void)userdata;
 
 	GVariant * property;
-	GError *err = NULL;
+	GError * err = NULL;
 
 	GDBusConnection * conn = G_DBUS_CONNECTION(source);
 	if ((property = g_dbus_get_property_finish(conn, result, &err)) == NULL) {
@@ -149,9 +150,9 @@ int upower_init(void) {
 	upower_subscribe_signals();
 
 	g_dbus_get_property(config.dbus, UPOWER_SERVICE, UPOWER_PATH_DISPLAY_DEVICE,
-			UPOWER_IFACE_DEVICE, "IsPresent", upower_get_is_present_finish, NULL);
+	                    UPOWER_IFACE_DEVICE, "IsPresent", upower_get_is_present_finish, NULL);
 	g_dbus_get_property(config.dbus, UPOWER_SERVICE, UPOWER_PATH_DISPLAY_DEVICE,
-			UPOWER_IFACE_DEVICE, "Percentage", upower_get_percentage_finish, NULL);
+	                    UPOWER_IFACE_DEVICE, "Percentage", upower_get_percentage_finish, NULL);
 
 	return 0;
 }

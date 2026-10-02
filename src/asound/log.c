@@ -8,8 +8,8 @@
 
 #if SND_LIB_VERSION < 0x01020F
 
-#include <pthread.h>
-#include <stdlib.h>
+# include <pthread.h>
+# include <stdlib.h>
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 int __snd_log_level = -1;

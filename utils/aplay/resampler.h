@@ -20,13 +20,13 @@
 struct resampler {
 
 	/* The state and configuration data. */
-	SRC_STATE *src_state;
+	SRC_STATE * src_state;
 	SRC_DATA src_data;
 
 	/* Internal buffers for converting from
 	 * integer to float sample formats. */
-	float *in_buffer;
-	float *out_buffer;
+	float * in_buffer;
+	float * out_buffer;
 
 	/* The number of channels of the stream. */
 	unsigned int channels;
@@ -80,7 +80,7 @@ bool resampler_is_input_format_supported(snd_pcm_format_t format);
 bool resampler_is_output_format_supported(snd_pcm_format_t format);
 
 int resampler_init(
-		struct resampler *resampler,
+		struct resampler * resampler,
 		enum resampler_converter_type type,
 		unsigned int channels,
 		snd_pcm_format_t in_format,
@@ -91,26 +91,26 @@ int resampler_init(
 		snd_pcm_uframes_t max_target);
 
 void resampler_free(
-		struct resampler *resampler);
+		struct resampler * resampler);
 
 int resampler_process(
-		struct resampler *resampler,
-		ffb_t *in,
-		ffb_t *out);
+		struct resampler * resampler,
+		ffb_t * in,
+		ffb_t * out);
 
 void resampler_reset(
-		struct resampler *resampler);
+		struct resampler * resampler);
 
 double resampler_current_rate_ratio(
-		const struct resampler *resampler);
+		const struct resampler * resampler);
 
 bool resampler_update_rate_ratio(
-		struct resampler *resampler,
+		struct resampler * resampler,
 		snd_pcm_uframes_t frames_read,
 		snd_pcm_uframes_t delay);
 
 void resampler_convert_to_native_endian_format(
-		void *buffer, size_t len, snd_pcm_format_t format);
+		void * buffer, size_t len, snd_pcm_format_t format);
 
 snd_pcm_format_t resampler_native_endian_format(snd_pcm_format_t format);
 snd_pcm_format_t resampler_preferred_output_format(void);

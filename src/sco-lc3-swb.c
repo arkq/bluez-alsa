@@ -27,12 +27,12 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
-void *sco_lc3_swb_enc_thread(struct ba_transport_pcm *t_pcm) {
+void * sco_lc3_swb_enc_thread(struct ba_transport_pcm * t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = t_pcm->t;
+	struct ba_transport * t = t_pcm->t;
 	struct io_poll io = { .timeout = -1 };
 	const size_t mtu_write = t->mtu_write;
 
@@ -64,7 +64,7 @@ void *sco_lc3_swb_enc_thread(struct ba_transport_pcm *t_pcm) {
 		/* Encode as much PCM data as possible. */
 		while (lc3_swb_encode(&codec) > 0) {
 
-			uint8_t *data = codec.data.data;
+			uint8_t * data = codec.data.data;
 			size_t data_len = ffb_blen_out(&codec.data);
 
 			while (data_len >= mtu_write) {
@@ -106,12 +106,12 @@ exit:
 	return NULL;
 }
 
-void *sco_lc3_swb_dec_thread(struct ba_transport_pcm *t_pcm) {
+void * sco_lc3_swb_dec_thread(struct ba_transport_pcm * t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = t_pcm->t;
+	struct ba_transport * t = t_pcm->t;
 	struct io_poll io = { .timeout = -1 };
 
 	struct esco_lc3_swb codec;

@@ -15,18 +15,17 @@
 #include "bluealsactl.h"
 #include "shared/dbus-client-pcm.h"
 
-static void usage(const char *command) {
+static void usage(const char * command) {
 	printf("Get or set the mute switch of the given PCM.\n\n");
 	bactl_print_usage("%s [OPTION]... PCM-PATH [STATE [STATE]...]", command);
 	printf("\nOptions:\n"
-			"  -h, --help\t\tShow this message and exit\n"
-			"\nPositional arguments:\n"
-			"  PCM-PATH\tBlueALSA PCM D-Bus object path\n"
-			"  STATE\t\tEnable or disable mute switch\n"
-	);
+	       "  -h, --help\t\tShow this message and exit\n"
+	       "\nPositional arguments:\n"
+	       "  PCM-PATH\tBlueALSA PCM D-Bus object path\n"
+	       "  STATE\t\tEnable or disable mute switch\n");
 }
 
-static int cmd_mute_func(int argc, char *argv[]) {
+static int cmd_mute_func(int argc, char * argv[]) {
 
 	int opt;
 	const char * opts = "hqv";
@@ -42,7 +41,7 @@ static int cmd_mute_func(int argc, char *argv[]) {
 		if (bactl_parse_common_options(opt))
 			continue;
 		switch (opt) {
-		case 'h' /* --help */ :
+		case 'h' /* --help */:
 			usage(argv[0]);
 			return EXIT_SUCCESS;
 		default:
@@ -57,7 +56,7 @@ static int cmd_mute_func(int argc, char *argv[]) {
 	}
 
 	DBusError err = DBUS_ERROR_INIT;
-	const char *path = argv[optind];
+	const char * path = argv[optind];
 
 	struct ba_pcm pcm;
 	if (!bactl_get_ba_pcm(path, &pcm, &err)) {
@@ -72,7 +71,7 @@ static int cmd_mute_func(int argc, char *argv[]) {
 
 	if (argc - optind - 1 > pcm.channels) {
 		cmd_print_error("Invalid number of channels: %d > %d",
-				argc - optind - 1, pcm.channels);
+		                argc - optind - 1, pcm.channels);
 		return EXIT_FAILURE;
 	}
 

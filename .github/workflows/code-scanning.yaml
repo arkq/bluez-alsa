@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2021-2025 BlueALSA developers
+# SPDX-FileCopyrightText: 2021-2026 BlueALSA developers
 # SPDX-License-Identifier: MIT
 
 name: Code Scanning
@@ -17,6 +17,36 @@ permissions:
   security-events: write
 
 jobs:
+
+  # Can be removed when uncrustify-0.84.0 is available in Ubuntu repository.
+  c-lint-prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache@v6
+        id: cache
+        with:
+          key: ${{ runner.os }}-${{ runner.arch }}-uncrustify
+          path: bin/uncrustify
+      - name: Compile
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth=1 https://github.com/uncrustify/uncrustify.git
+          cmake -S uncrustify -B bin -DCMAKE_BUILD_TYPE=Release
+          cmake --build bin
+
+  c-lint:
+    needs: c-lint-prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache/restore@v6
+        with:
+          key: ${{ runner.os }}-${{ runner.arch }}-uncrustify
+          path: bin/uncrustify
+      - name: Run C Linter
+        run: |
+          find . -name '*.[ch]' -exec bin/uncrustify --no-backup {} +
+          git diff --exit-code
 
   cccc:
     runs-on: ubuntu-latest

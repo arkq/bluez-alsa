@@ -20,18 +20,17 @@
 #include "shared/dbus-client-pcm.h"
 #include "shared/hex.h"
 
-static void usage(const char *command) {
+static void usage(const char * command) {
 	printf("Transfer raw PCM data via stdin or stdout.\n\n");
 	bactl_print_usage("%s [OPTION]... PCM-PATH", command);
 	printf("\nOptions:\n"
-			"  -h, --help\t\tShow this message and exit\n"
-			"  -x, --hex\t\tTransfer data in hexadecimal format\n"
-			"\nPositional arguments:\n"
-			"  PCM-PATH\tBlueALSA PCM D-Bus object path\n"
-	);
+	       "  -h, --help\t\tShow this message and exit\n"
+	       "  -x, --hex\t\tTransfer data in hexadecimal format\n"
+	       "\nPositional arguments:\n"
+	       "  PCM-PATH\tBlueALSA PCM D-Bus object path\n");
 }
 
-static int cmd_open_func(int argc, char *argv[]) {
+static int cmd_open_func(int argc, char * argv[]) {
 
 	int opt;
 	const char * opts = "hqvx";
@@ -50,10 +49,10 @@ static int cmd_open_func(int argc, char *argv[]) {
 		if (bactl_parse_common_options(opt))
 			continue;
 		switch (opt) {
-		case 'h' /* --help */ :
+		case 'h' /* --help */:
 			usage(argv[0]);
 			return EXIT_SUCCESS;
-		case 'x' /* --hex */ :
+		case 'x' /* --hex */:
 			hex = true;
 			break;
 		default:
@@ -71,7 +70,7 @@ static int cmd_open_func(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	const char *path = argv[optind];
+	const char * path = argv[optind];
 	if (!dbus_validate_path(path, NULL)) {
 		cmd_print_error("Invalid PCM path: %s", path);
 		return EXIT_FAILURE;
@@ -103,7 +102,7 @@ static int cmd_open_func(int argc, char *argv[]) {
 
 	while ((count = read(fd_input, buffer, sizeof(buffer))) > 0) {
 
-		const uint8_t *pos = buffer;
+		const uint8_t * pos = buffer;
 		ssize_t written = 0;
 
 		if (hex) {

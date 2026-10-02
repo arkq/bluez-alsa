@@ -20,7 +20,7 @@
 
 #include "ba-adapter.h"
 
-int hci_get_version(int dev_id, struct hci_version *ver);
+int hci_get_version(int dev_id, struct hci_version * ver);
 
 /**
  * SCO close-connect quirk delay (milliseconds).
@@ -33,9 +33,9 @@ int hci_get_version(int dev_id, struct hci_version *ver);
 #define HCI_SCO_CLOSE_CONNECT_QUIRK_DELAY 300
 
 int hci_sco_open(int dev_id);
-int hci_sco_connect(int sco_fd, const bdaddr_t *ba, uint16_t voice);
+int hci_sco_connect(int sco_fd, const bdaddr_t * ba, uint16_t voice);
 
-unsigned int hci_sco_get_mtu(int sco_fd, struct ba_adapter *a);
+unsigned int hci_sco_get_mtu(int sco_fd, struct ba_adapter * a);
 
 #define BT_BCM_PARAM_ROUTING_PCM       0x0
 #define BT_BCM_PARAM_ROUTING_TRANSPORT 0x1
@@ -53,13 +53,13 @@ unsigned int hci_sco_get_mtu(int sco_fd, struct ba_adapter *a);
 #define BT_BCM_PARAM_PCM_CLK_SLAVE     0x0
 #define BT_BCM_PARAM_PCM_CLK_MASTER    0x1
 
-int hci_bcm_read_sco_pcm_params(int dd, uint8_t *routing, uint8_t *clock,
-		uint8_t *frame, uint8_t *sync, uint8_t *clk, int to);
+int hci_bcm_read_sco_pcm_params(int dd, uint8_t * routing, uint8_t * clock,
+		uint8_t * frame, uint8_t * sync, uint8_t * clk, int to);
 int hci_bcm_write_sco_pcm_params(int dd, uint8_t routing, uint8_t clock,
 		uint8_t frame, uint8_t sync, uint8_t clk, int to);
 
 #if DEBUG
-const char *batostr_(const bdaddr_t *ba);
+const char * batostr_(const bdaddr_t * ba);
 #endif
 
 #endif

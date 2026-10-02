@@ -26,48 +26,57 @@
 
 #include "a2dp.h"
 #include "ba-adapter.h"
+#include "ba-config.h"
 #include "ba-device.h"
 #include "ba-rfcomm.h"
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
-#include "ba-config.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
 #include "error.h"
 #include "fixtures.h"
 #include "midi.h"
-#include "storage.h"
 #include "shared/bluetooth-a2dp.h"
 #include "shared/bluetooth-hfp.h"
 #include "shared/log.h"
+#include "storage.h"
 
 /* Keep persistent storage in the current directory. */
 #define TEST_BLUEALSA_STORAGE_DIR "storage-test-ba"
 
-int midi_transport_alsa_seq_create(struct ba_transport *t) { (void)t; return 0; }
-int midi_transport_alsa_seq_delete(struct ba_transport *t) { (void)t; return 0; }
-int midi_transport_start(struct ba_transport *t) { (void)t; return 0; }
-int midi_transport_stop(struct ba_transport *t) { (void)t; return 0; }
+int midi_transport_alsa_seq_create(struct ba_transport * t) { (void)t; return 0; }
+int midi_transport_alsa_seq_delete(struct ba_transport * t) { (void)t; return 0; }
+int midi_transport_start(struct ba_transport * t) { (void)t; return 0; }
+int midi_transport_stop(struct ba_transport * t) { (void)t; return 0; }
 
 void * ba_rfcomm_thread(struct ba_transport * t) { (void)t; return 0; }
 error_code_t bluealsa_dbus_pcm_register(struct ba_transport_pcm * pcm) {
 	debug("%s: %p", __func__, (void *)pcm); (void)pcm;
-	return ERROR_CODE_OK; }
-void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
-	debug("%s: %p %#x", __func__, (void *)pcm, mask); (void)pcm; (void)mask; }
-void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
-	debug("%s: %p", __func__, (void *)pcm); (void)pcm; }
-struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
-	debug("%s: %p", __func__, (void *)sco); (void)sco; (void)fd; return NULL; }
-void ba_rfcomm_destroy(struct ba_rfcomm *r) {
-	debug("%s: %p", __func__, (void *)r); (void)r; }
-int ba_rfcomm_send_signal(struct ba_rfcomm *r, enum ba_rfcomm_signal sig) {
-	debug("%s: %p: %#x", __func__, (void *)r, sig); (void)r; (void)sig; return 0; }
-bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
-		const struct a2dp_sep_config *sep, const void *configuration, GError **error) {
+	return ERROR_CODE_OK;
+}
+void bluealsa_dbus_pcm_update(struct ba_transport_pcm * pcm, unsigned int mask) {
+	debug("%s: %p %#x", __func__, (void *)pcm, mask); (void)pcm; (void)mask;
+}
+void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm * pcm) {
+	debug("%s: %p", __func__, (void *)pcm); (void)pcm;
+}
+struct ba_rfcomm * ba_rfcomm_new(struct ba_transport * sco, int fd) {
+	debug("%s: %p", __func__, (void *)sco); (void)sco; (void)fd;
+	return NULL;
+}
+void ba_rfcomm_destroy(struct ba_rfcomm * r) {
+	debug("%s: %p", __func__, (void *)r); (void)r;
+}
+int ba_rfcomm_send_signal(struct ba_rfcomm * r, enum ba_rfcomm_signal sig) {
+	debug("%s: %p: %#x", __func__, (void *)r, sig); (void)r; (void)sig;
+	return 0;
+}
+bool bluez_a2dp_set_configuration(const char * current_dbus_sep_path,
+		const struct a2dp_sep_config * sep, const void * configuration, GError ** error) {
 	debug("%s: %s: %p", __func__, current_dbus_sep_path, sep);
 	(void)current_dbus_sep_path; (void)sep; (void)configuration; (void)error;
-	return false; }
+	return false;
+}
 
 CK_START_TEST(test_ba_adapter) {
 
@@ -88,7 +97,8 @@ CK_START_TEST(test_ba_adapter) {
 	ba_adapter_unref(a);
 	ck_assert_ptr_null(ba_adapter_lookup(5));
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ba_device) {
 
@@ -96,7 +106,7 @@ CK_START_TEST(test_ba_device) {
 	ck_assert_ptr_nonnull(a = ba_adapter_new(0));
 
 	struct ba_device * d;
-	bdaddr_t addr = {{ 0x12, 0x34, 0x56, 0x78, 0x90, 0xAB }};
+	bdaddr_t addr = { { 0x12, 0x34, 0x56, 0x78, 0x90, 0xAB } };
 	ck_assert_ptr_nonnull(d = ba_device_new(a, &addr));
 
 	ba_adapter_unref(a);
@@ -112,7 +122,8 @@ CK_START_TEST(test_ba_device) {
 	ba_device_unref(d);
 	ck_assert_ptr_null(ba_adapter_lookup(0));
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ba_transport) {
 
@@ -124,15 +135,15 @@ CK_START_TEST(test_ba_transport) {
 	ck_assert_int_eq(storage_device_clear(d), 0);
 
 	struct ba_transport * t;
-	ck_assert_ptr_nonnull(t = ba_transport_new_sco(d,
-				BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path", -1));
+	ck_assert_ptr_nonnull(t = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG,
+	                                               ":owner", "/path", -1));
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);
 
 	ck_assert_ptr_eq(t->d, d);
 	ck_assert_int_eq(t->profile, BA_TRANSPORT_PROFILE_HFP_AG);
-	ck_assert_str_eq(t->bluez_dbus_owner, "/owner");
+	ck_assert_str_eq(t->bluez_dbus_owner, ":owner");
 	ck_assert_str_eq(t->bluez_dbus_path, "/path");
 
 	ck_assert_ptr_eq(ba_transport_lookup(d, "/path"), t);
@@ -141,7 +152,8 @@ CK_START_TEST(test_ba_transport) {
 	ba_transport_unref(t);
 	ck_assert_ptr_null(ba_adapter_lookup(0));
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 #if ENABLE_MIDI
 CK_START_TEST(test_ba_transport_midi) {
@@ -154,8 +166,8 @@ CK_START_TEST(test_ba_transport_midi) {
 	ck_assert_int_eq(storage_device_clear(d), 0);
 
 	struct ba_transport * t;
-	ck_assert_ptr_nonnull(t = ba_transport_new_midi(d,
-				BA_TRANSPORT_PROFILE_MIDI, "/owner", "/path"));
+	ck_assert_ptr_nonnull(t = ba_transport_new_midi(d, BA_TRANSPORT_PROFILE_MIDI,
+	                                                ":owner", "/path"));
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);
@@ -166,7 +178,8 @@ CK_START_TEST(test_ba_transport_midi) {
 	ba_transport_destroy(t);
 	ck_assert_ptr_null(ba_adapter_lookup(0));
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
 CK_START_TEST(test_ba_transport_sco_one_only) {
@@ -179,12 +192,12 @@ CK_START_TEST(test_ba_transport_sco_one_only) {
 	ck_assert_int_eq(storage_device_clear(d), 0);
 
 	struct ba_transport * t_sco_hsp;
-	t_sco_hsp = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HSP_AG, "/owner", "/path/sco", -1);
-	ck_assert_ptr_nonnull(t_sco_hsp);
+	ck_assert_ptr_nonnull(t_sco_hsp = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HSP_AG,
+	                                                       ":owner", "/sco", -1));
 
 	struct ba_transport * t_sco_hfp;
-	t_sco_hfp = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1);
-	ck_assert_ptr_null(t_sco_hfp);
+	ck_assert_ptr_null(t_sco_hfp = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG,
+	                                                    ":owner", "/sco", -1));
 	ck_assert_int_eq(errno, EBUSY);
 
 	ba_transport_unref(t_sco_hsp);
@@ -193,7 +206,8 @@ CK_START_TEST(test_ba_transport_sco_one_only) {
 	ba_device_unref(d);
 	ck_assert_ptr_null(ba_adapter_lookup(0));
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ba_transport_sco_default_codec) {
 
@@ -205,7 +219,7 @@ CK_START_TEST(test_ba_transport_sco_default_codec) {
 
 	struct ba_transport * t_sco;
 	ck_assert_int_eq(storage_device_clear(d), 0);
-	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HSP_AG, "/owner", "/path/sco", -1);
+	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HSP_AG, ":owner", "/sco", -1);
 	ck_assert_int_eq(ba_transport_get_codec(t_sco), HFP_CODEC_CVSD);
 	ba_transport_unref(t_sco);
 
@@ -216,19 +230,19 @@ CK_START_TEST(test_ba_transport_sco_default_codec) {
 
 	config.hfp.codecs.msbc = true;
 	ck_assert_int_eq(storage_device_clear(d), 0);
-	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1);
+	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG, ":owner", "/sco", -1);
 	ck_assert_int_eq(ba_transport_get_codec(t_sco), HFP_CODEC_UNDEFINED);
 	ba_transport_unref(t_sco);
 
 	config.hfp.codecs.msbc = false;
 	ck_assert_int_eq(storage_device_clear(d), 0);
-	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1);
+	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG, ":owner", "/sco", -1);
 	ck_assert_int_eq(ba_transport_get_codec(t_sco), HFP_CODEC_CVSD);
 	ba_transport_unref(t_sco);
 
 #else
 	ck_assert_int_eq(storage_device_clear(d), 0);
-	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1);
+	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG, ":owner", "/sco", -1);
 	ck_assert_int_eq(ba_transport_get_codec(t_sco), HFP_CODEC_CVSD);
 	ba_transport_unref(t_sco);
 #endif
@@ -237,7 +251,8 @@ CK_START_TEST(test_ba_transport_sco_default_codec) {
 	ba_device_unref(d);
 	ck_assert_ptr_null(ba_adapter_lookup(0));
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 void * sco_enc_thread(struct ba_transport_pcm * t_pcm);
 
@@ -257,7 +272,7 @@ CK_START_TEST(test_ba_transport_threads_sync_termination) {
 	ck_assert_int_eq(storage_device_clear(d), 0);
 
 	struct ba_transport * t_sco;
-	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HSP_AG, "/owner", "/path/sco", -1);
+	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HSP_AG, ":owner", "/sco", -1);
 	ck_assert_ptr_nonnull(t_sco);
 
 	t_sco->bt_fd = 0;
@@ -278,7 +293,8 @@ CK_START_TEST(test_ba_transport_threads_sync_termination) {
 	ba_transport_unref(t_sco);
 	ck_assert_ptr_null(ba_adapter_lookup(0));
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_ba_transport_pcm_format) {
 
@@ -297,7 +313,8 @@ CK_START_TEST(test_ba_transport_pcm_format) {
 	ck_assert_int_eq(BA_TRANSPORT_PCM_FORMAT_BYTES(format_s32_4le), 4);
 	ck_assert_int_eq(BA_TRANSPORT_PCM_FORMAT_ENDIAN(format_s32_4le), 0);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 static error_code_t sep_transport_init(struct ba_transport * t) {
 	(void)t;
@@ -315,26 +332,33 @@ CK_START_TEST(test_ba_transport_pcm_volume) {
 
 	struct a2dp_sep sep = {
 		.config = { .type = A2DP_SINK, .codec_id = A2DP_CODEC_SBC },
-		.transport_init = sep_transport_init };
-	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
+		.transport_init = sep_transport_init,
+	};
 
 	struct ba_transport * t_a2dp;
-	ck_assert_ptr_nonnull(t_a2dp = ba_transport_new_a2dp(d,
-				BA_TRANSPORT_PROFILE_A2DP_SINK, "/owner", "/path/a2dp", &sep,
-				&configuration));
+	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
+	ck_assert_ptr_nonnull(t_a2dp = ba_transport_new_a2dp(d, BA_TRANSPORT_PROFILE_A2DP_SINK,
+	                                                     ":owner", "/a2dp", &sep, &configuration));
 
 	struct ba_transport * t_sco;
-	ck_assert_ptr_nonnull(t_sco = ba_transport_new_sco(d,
-				BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1));
-
+	ck_assert_ptr_nonnull(t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG,
+	                                                   ":owner", "/sco", -1));
 	ba_adapter_unref(a);
 	ba_device_unref(d);
 
-	ck_assert_int_eq(ba_transport_pcm_volume_range_to_level(0, BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX), -9600);
-	ck_assert_int_eq(ba_transport_pcm_volume_level_to_range(-9600, BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX), 0);
+	ck_assert_int_eq(ba_transport_pcm_volume_range_to_level(0,
+	                                                        BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX),
+	                 -9600);
+	ck_assert_int_eq(ba_transport_pcm_volume_level_to_range(-9600,
+	                                                        BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX),
+	                 0);
 
-	ck_assert_int_eq(ba_transport_pcm_volume_range_to_level(127, BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX), 0);
-	ck_assert_int_eq(ba_transport_pcm_volume_level_to_range(0, BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX), 127);
+	ck_assert_int_eq(ba_transport_pcm_volume_range_to_level(127,
+	                                                        BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX),
+	                 0);
+	ck_assert_int_eq(ba_transport_pcm_volume_level_to_range(0,
+	                                                        BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX),
+	                 127);
 
 	ck_assert_int_eq(ba_transport_pcm_volume_range_to_level(0, HFP_VOLUME_GAIN_MAX), -9600);
 	ck_assert_int_eq(ba_transport_pcm_volume_level_to_range(-9600, HFP_VOLUME_GAIN_MAX), 0);
@@ -347,9 +371,10 @@ CK_START_TEST(test_ba_transport_pcm_volume) {
 
 	ck_assert_ptr_null(ba_adapter_lookup(0));
 
-} CK_END_TEST
+}
+CK_END_TEST
 
-static int test_cascade_free_transport_unref(struct ba_transport *t) {
+static int test_cascade_free_transport_unref(struct ba_transport * t) {
 	return ba_transport_unref(t), 0;
 }
 
@@ -363,8 +388,8 @@ CK_START_TEST(test_cascade_free) {
 	ck_assert_int_eq(storage_device_clear(d), 0);
 
 	struct ba_transport * t;
-	ck_assert_ptr_nonnull(t = ba_transport_new_sco(d,
-				BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path", -1));
+	ck_assert_ptr_nonnull(t = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG,
+	                                               ":owner", "/path", -1));
 
 	t->bt_fd = 0;  /* release() is called for acquired transport only */
 	t->release = test_cascade_free_transport_unref;
@@ -375,12 +400,13 @@ CK_START_TEST(test_cascade_free) {
 	/* verify that cascade free was performed */
 	ck_assert_ptr_null(ba_adapter_lookup(0));
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_storage) {
 
-	const char *storage_path = TEST_BLUEALSA_STORAGE_DIR "/00:11:22:33:44:55";
-	const char *storage_data =
+	const char * storage_path = TEST_BLUEALSA_STORAGE_DIR "/00:11:22:33:44:55";
+	const char * storage_data =
 		"[/org/bluealsa/hci0/dev_00_11_22_33_44_55/a2dpsnk/source]\n"
 		"ClientDelays=SBC:-200\n"
 		"SoftVolume=false\n"
@@ -403,13 +429,13 @@ CK_START_TEST(test_storage) {
 
 	struct a2dp_sep sep = {
 		.config = { .type = A2DP_SINK, .codec_id = A2DP_CODEC_SBC },
-		.transport_init = sep_transport_init };
-	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
+		.transport_init = sep_transport_init,
+	};
 
 	struct ba_transport * t;
-	ck_assert_ptr_nonnull(t = ba_transport_new_a2dp(d,
-				BA_TRANSPORT_PROFILE_A2DP_SINK, "/owner", "/path", &sep,
-				&configuration));
+	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
+	ck_assert_ptr_nonnull(t = ba_transport_new_a2dp(d, BA_TRANSPORT_PROFILE_A2DP_SINK,
+	                                                ":owner", "/path", &sep, &configuration));
 
 	/* This test does not link with A2DP functionality,
 	 * so the PCM has to be initialized manually. */
@@ -439,7 +465,7 @@ CK_START_TEST(test_storage) {
 	ck_assert_int_gt(fread(buffer, 1, sizeof(buffer), f), 0);
 	ck_assert_int_eq(fclose(f), 0);
 
-	const char *storage_data_new =
+	const char * storage_data_new =
 		"[/org/bluealsa/hci0/dev_00_11_22_33_44_55/a2dpsnk/source]\n"
 		"ClientDelays=SBC:140;\n"
 		"SoftVolume=false\n"
@@ -455,7 +481,8 @@ CK_START_TEST(test_storage) {
 	/* check if persistent storage was updated */
 	ck_assert_str_eq(buffer, storage_data_new);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 int main(void) {
 

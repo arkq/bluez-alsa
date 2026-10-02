@@ -54,7 +54,7 @@ int sbc_reinit_msbc(sbc_t * sbc, unsigned long flags) {
  * @param msbc Codec structure which shall be initialized.
  * @return This function returns 0 on success or a negative error value
  *   in case of initialization failure. */
-int msbc_init(struct esco_msbc *msbc) {
+int msbc_init(struct esco_msbc * msbc) {
 
 	if (!msbc->initialized) {
 		debug("Initializing mSBC codec");
@@ -104,7 +104,7 @@ fail:
 	return -errno;
 }
 
-void msbc_finish(struct esco_msbc *msbc) {
+void msbc_finish(struct esco_msbc * msbc) {
 
 	if (msbc == NULL)
 		return;
@@ -118,25 +118,25 @@ void msbc_finish(struct esco_msbc *msbc) {
 
 /**
  * Find and decode single eSCO mSBC frame. */
-ssize_t msbc_decode(struct esco_msbc *msbc) {
+ssize_t msbc_decode(struct esco_msbc * msbc) {
 
 	if (!msbc->initialized)
 		return -EINVAL;
 
-	const uint8_t *input = msbc->data.data;
+	const uint8_t * input = msbc->data.data;
 	size_t input_len = ffb_blen_out(&msbc->data);
 	size_t output_len = ffb_blen_in(&msbc->pcm);
 	ssize_t rv = 0;
 
 	const size_t tmp = input_len;
-	const h2_msbc_frame_t *frame = h2_header_find(input, &input_len);
+	const h2_msbc_frame_t * frame = h2_header_find(input, &input_len);
 	input += tmp - input_len;
 
 	/* Skip decoding if there is not enough input data or the output
 	 * buffer is not big enough to hold decoded PCM samples and PCM
 	 * samples reconstructed with PLC (up to 3 mSBC frames). */
 	if (input_len < sizeof(*frame) ||
-			output_len < MSBC_CODESIZE * (1 + 3))
+	    output_len < MSBC_CODESIZE * (1 + 3))
 		goto final;
 
 	const uint8_t h2_seq = h2_header_unpack(frame->header);
@@ -163,7 +163,7 @@ ssize_t msbc_decode(struct esco_msbc *msbc) {
 
 	ssize_t len;
 	if ((len = sbc_decode(&msbc->sbc, frame->payload, sizeof(frame->payload),
-					msbc->pcm.tail, output_len, NULL)) < 0) {
+	                      msbc->pcm.tail, output_len, NULL)) < 0) {
 
 		warn("Couldn't decode mSBC frame: %s", sbc_strerror(len));
 
@@ -197,25 +197,25 @@ final:
 
 /**
  * Encode single eSCO mSBC frame. */
-ssize_t msbc_encode(struct esco_msbc *msbc) {
+ssize_t msbc_encode(struct esco_msbc * msbc) {
 
 	if (!msbc->initialized)
 		return -EINVAL;
 
-	const int16_t *input = msbc->pcm.data;
+	const int16_t * input = msbc->pcm.data;
 	const size_t input_len = ffb_blen_out(&msbc->pcm);
-	h2_msbc_frame_t *frame = msbc->data.tail;
+	h2_msbc_frame_t * frame = msbc->data.tail;
 	size_t output_len = ffb_blen_in(&msbc->data);
 
 	/* Skip encoding if there is not enough PCM samples or the output
 	 * buffer is not big enough to hold whole eSCO mSBC frame.*/
 	if (input_len < MSBC_CODESIZE ||
-			output_len < sizeof(*frame))
+	    output_len < sizeof(*frame))
 		return 0;
 
 	ssize_t len;
 	if ((len = sbc_encode(&msbc->sbc, input, input_len,
-					frame->payload, sizeof(frame->payload), NULL)) < 0)
+	                      frame->payload, sizeof(frame->payload), NULL)) < 0)
 		return len;
 
 	frame->header = h2_header_pack(++msbc->seq_number);
@@ -235,6 +235,6 @@ ssize_t msbc_encode(struct esco_msbc *msbc) {
  *
  * @param err The encode/decode error code.
  * @return Human-readable string. */
-const char *msbc_strerror(int err) {
+const char * msbc_strerror(int err) {
 	return sbc_strerror(err);
 }

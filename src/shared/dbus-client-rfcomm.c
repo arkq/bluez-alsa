@@ -14,14 +14,14 @@
 
 /**
  * Callback function for rfcomm object properties parser. */
-static dbus_bool_t ba_dbus_message_iter_rfcomm_props_get_cb(const char *key,
-		DBusMessageIter *value, void *userdata, DBusError *error) {
-	struct ba_rfcomm_props *props = (struct ba_rfcomm_props *)userdata;
+static dbus_bool_t ba_dbus_message_iter_rfcomm_props_get_cb(const char * key,
+		DBusMessageIter * value, void * userdata, DBusError * error) {
+	struct ba_rfcomm_props * props = (struct ba_rfcomm_props *)userdata;
 
 	char type;
 	if ((type = dbus_message_iter_get_arg_type(value)) != DBUS_TYPE_VARIANT) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
-				"Incorrect property value type: %c != %c", type, DBUS_TYPE_VARIANT);
+		               "Incorrect property value type: %c != %c", type, DBUS_TYPE_VARIANT);
 		return FALSE;
 	}
 
@@ -36,7 +36,7 @@ static dbus_bool_t ba_dbus_message_iter_rfcomm_props_get_cb(const char *key,
 		if (type != (type_expected = DBUS_TYPE_STRING))
 			goto fail;
 
-		const char *tmp;
+		const char * tmp;
 		dbus_message_iter_get_basic(&variant, &tmp);
 		strncpy(props->transport, tmp, sizeof(props->transport) - 1);
 
@@ -46,7 +46,7 @@ static dbus_bool_t ba_dbus_message_iter_rfcomm_props_get_cb(const char *key,
 		if (type != (type_expected = DBUS_TYPE_ARRAY))
 			goto fail;
 
-		const char *tmp[32];
+		const char * tmp[32];
 		size_t length = ARRAYSIZE(tmp);
 		if (!dbus_message_iter_array_get_strings(&variant, error, tmp, &length))
 			return FALSE;
@@ -72,7 +72,7 @@ static dbus_bool_t ba_dbus_message_iter_rfcomm_props_get_cb(const char *key,
 
 fail:
 	dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
-			"Incorrect variant for '%s': %c != %c", key, type, type_expected);
+	               "Incorrect variant for '%s': %c != %c", key, type, type_expected);
 	return FALSE;
 }
 
@@ -82,23 +82,22 @@ fail:
  * This function allocates resources within the properties structure, which
  * shall be freed with the ba_dbus_rfcomm_props_free() function. */
 dbus_bool_t ba_dbus_rfcomm_props_get(
-		struct ba_dbus_ctx *ctx,
-		const char *rfcomm_path,
-		struct ba_rfcomm_props *props,
-		DBusError *error) {
+		struct ba_dbus_ctx * ctx,
+		const char * rfcomm_path,
+		struct ba_rfcomm_props * props,
+		DBusError * error) {
 
 	props->features = NULL;
 	props->features_len = 0;
 
-	return ba_dbus_props_get_all(ctx,
-			rfcomm_path, BLUEALSA_INTERFACE_RFCOMM, error,
-			ba_dbus_message_iter_rfcomm_props_get_cb, props);
+	return ba_dbus_props_get_all(ctx, rfcomm_path, BLUEALSA_INTERFACE_RFCOMM, error,
+	                             ba_dbus_message_iter_rfcomm_props_get_cb, props);
 }
 
 /**
  * Free BlueALSA RFCOMM properties structure. */
 void ba_dbus_rfcomm_props_free(
-		struct ba_rfcomm_props *props) {
+		struct ba_rfcomm_props * props) {
 	if (props->features != NULL) {
 		for (size_t i = 0; i < props->features_len; i++)
 			free(props->features[i]);
@@ -110,29 +109,29 @@ void ba_dbus_rfcomm_props_free(
 /**
  * Open BlueALSA RFCOMM socket for dispatching AT commands. */
 dbus_bool_t ba_dbus_rfcomm_open(
-		struct ba_dbus_ctx *ctx,
-		const char *rfcomm_path,
-		int *fd_rfcomm,
-		DBusError *error) {
+		struct ba_dbus_ctx * ctx,
+		const char * rfcomm_path,
+		int * fd_rfcomm,
+		DBusError * error) {
 
-	DBusMessage *msg;
+	DBusMessage * msg;
 	if ((msg = dbus_message_new_method_call(ctx->ba_service, rfcomm_path,
-					BLUEALSA_INTERFACE_RFCOMM, "Open")) == NULL) {
+	                                        BLUEALSA_INTERFACE_RFCOMM, "Open")) == NULL) {
 		dbus_set_error_const(error, DBUS_ERROR_NO_MEMORY, NULL);
 		return FALSE;
 	}
 
-	DBusMessage *rep;
-	if ((rep = dbus_connection_send_with_reply_and_block(ctx->conn,
-					msg, DBUS_TIMEOUT_USE_DEFAULT, error)) == NULL) {
+	DBusMessage * rep;
+	if ((rep = dbus_connection_send_with_reply_and_block(ctx->conn, msg, DBUS_TIMEOUT_USE_DEFAULT,
+	                                                     error)) == NULL) {
 		dbus_message_unref(msg);
 		return FALSE;
 	}
 
 	dbus_bool_t rv;
 	rv = dbus_message_get_args(rep, error,
-			DBUS_TYPE_UNIX_FD, fd_rfcomm,
-			DBUS_TYPE_INVALID);
+	                           DBUS_TYPE_UNIX_FD, fd_rfcomm,
+	                           DBUS_TYPE_INVALID);
 
 	dbus_message_unref(rep);
 	dbus_message_unref(msg);

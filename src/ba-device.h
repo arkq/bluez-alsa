@@ -25,7 +25,7 @@ struct ba_device {
 	rc_t _rc;
 
 	/* backward reference to adapter */
-	struct ba_adapter *a;
+	struct ba_adapter * a;
 
 	/* address of the Bluetooth device */
 	bdaddr_t addr;
@@ -34,9 +34,9 @@ struct ba_device {
 	unsigned int seq;
 
 	/* data for D-Bus management */
-	char *ba_dbus_path;
-	char *ba_battery_dbus_path;
-	char *bluez_dbus_path;
+	char * ba_dbus_path;
+	char * ba_battery_dbus_path;
+	char * bluez_dbus_path;
 	/* string representation of BT address */
 	char addr_dbus_str[sizeof("dev_XX_XX_XX_XX_XX_XX")];
 
@@ -60,11 +60,11 @@ struct ba_device {
 	} xapl;
 
 	/* read-only list of available SEP configurations */
-	const GArray *sep_configs;
+	const GArray * sep_configs;
 
 	/* hash-map with connected transports */
 	pthread_mutex_t transports_mutex;
-	GHashTable *transports;
+	GHashTable * transports;
 
 };
 

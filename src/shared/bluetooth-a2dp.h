@@ -198,7 +198,7 @@ typedef struct a2dp_mpeg {
 
 #define A2DP_MPEG_INIT_BITRATE(v) \
 	.bitrate1 = ((v) >> 8) & 0x7F, \
-	.bitrate2 = (v) & 0xFF,
+	.bitrate2 = (v) & 0xFF
 #define A2DP_MPEG_GET_BITRATE(a) \
 	((a).bitrate1 << 8 | (a).bitrate2)
 
@@ -256,24 +256,24 @@ typedef struct a2dp_aac {
 #define A2DP_AAC_INIT_BITRATE(v) \
 	.bitrate1 = ((v) >> 16) & 0x7F, \
 	.bitrate2 = ((v) >> 8) & 0xFF, \
-	.bitrate3 = (v) & 0xff,
+	.bitrate3 = (v) & 0xff
 #define A2DP_AAC_GET_BITRATE(a) \
 	((a).bitrate1 << 16 | (a).bitrate2 << 8 | (a).bitrate3)
 #define A2DP_AAC_SET_BITRATE(a, v) do { \
 		(a).bitrate1 = ((v) >> 16) & 0x7F; \
 		(a).bitrate2 = ((v) >> 8) & 0xFF; \
 		(a).bitrate3 = (v) & 0xFF; \
-	} while (0)
+} while (0)
 
 #define A2DP_AAC_INIT_SAMPLING_FREQ(v) \
 	.sampling_freq1 = ((v) >> 4) & 0xFF, \
-	.sampling_freq2 = (v) & 0x0F,
+	.sampling_freq2 = (v) & 0x0F
 #define A2DP_AAC_GET_SAMPLING_FREQ(a) \
 	((a).sampling_freq1 << 4 | (a).sampling_freq2)
 #define A2DP_AAC_SET_SAMPLING_FREQ(a, v) do { \
 		(a).sampling_freq1 = ((v) >> 4) & 0xFF; \
 		(a).sampling_freq2 = (v) & 0x0F; \
-	} while (0)
+} while (0)
 
 } __attribute__ ((packed)) a2dp_aac_t;
 
@@ -336,9 +336,11 @@ typedef struct a2dp_usac {
 
 #define A2DP_USAC_GET_BITRATE(a) \
 	((a).bitrate1 << 16 | (a).bitrate2 << 8 | (a).bitrate3)
-#define A2DP_USAC_GET_SAMPLING_FREQ(a) ( \
-		(a).sampling_freq1 << 20 | (a).sampling_freq2 << 12 | \
-		(a).sampling_freq3 << 4 | (a).sampling_freq4)
+#define A2DP_USAC_GET_SAMPLING_FREQ(a) \
+	((a).sampling_freq1 << 20 | \
+		(a).sampling_freq2 << 12 | \
+		(a).sampling_freq3 << 4 | \
+		(a).sampling_freq4)
 
 } __attribute__ ((packed)) a2dp_usac_t;
 
@@ -542,7 +544,7 @@ typedef struct a2dp_lc3plus {
 #endif
 	uint8_t channel_mode;
 	uint16_t sampling_freq12;
-#define A2DP_LC3PLUS_INIT_SAMPLING_FREQ(v) .sampling_freq12 = HTOBE16(v),
+#define A2DP_LC3PLUS_INIT_SAMPLING_FREQ(v) .sampling_freq12 = HTOBE16(v)
 #define A2DP_LC3PLUS_GET_SAMPLING_FREQ(a) be16toh((a).sampling_freq12)
 #define A2DP_LC3PLUS_SET_SAMPLING_FREQ(a, v) ((a).sampling_freq12 = htobe16(v))
 } __attribute__ ((packed)) a2dp_lc3plus_t;
@@ -764,11 +766,11 @@ typedef struct a2dp_opus_pw_stream {
 	uint8_t frame_duration;
 	uint16_t bitrate;
 
-#define A2DP_OPUS_PW_INIT_LOCATION(v) .location = HTOLE32(v),
+#define A2DP_OPUS_PW_INIT_LOCATION(v) .location = HTOLE32(v)
 #define A2DP_OPUS_PW_GET_LOCATION(a) le32toh((a).location)
 #define A2DP_OPUS_PW_SET_LOCATION(a, v) ((a).location = htole32(v))
 
-#define A2DP_OPUS_PW_INIT_BITRATE(v) .bitrate = HTOLE16(v),
+#define A2DP_OPUS_PW_INIT_BITRATE(v) .bitrate = HTOLE16(v)
 #define A2DP_OPUS_PW_GET_BITRATE(a) le32toh((a).bitrate)
 #define A2DP_OPUS_PW_SET_BITRATE(a, v) ((a).bitrate = htole16(v))
 

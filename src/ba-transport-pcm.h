@@ -87,7 +87,7 @@ struct ba_transport;
 struct ba_transport_pcm {
 
 	/* backward reference to transport */
-	struct ba_transport *t;
+	struct ba_transport * t;
 
 	/* PCM stream operation mode */
 	enum ba_transport_pcm_mode mode;
@@ -147,7 +147,7 @@ struct ba_transport_pcm {
 	pthread_mutex_t client_mtx;
 
 	/* source watch for controller socket */
-	GSource *controller;
+	GSource * controller;
 
 	/* actual thread ID */
 	pthread_t tid;
@@ -156,21 +156,21 @@ struct ba_transport_pcm {
 	int pipe[2];
 
 	/* exported PCM D-Bus API */
-	char *ba_dbus_path;
+	char * ba_dbus_path;
 	bool ba_dbus_exported;
 
 };
 
 int transport_pcm_init(
-		struct ba_transport_pcm *pcm,
+		struct ba_transport_pcm * pcm,
 		enum ba_transport_pcm_mode mode,
-		struct ba_transport *t,
+		struct ba_transport * t,
 		bool master);
 void transport_pcm_free(
-		struct ba_transport_pcm *pcm);
+		struct ba_transport_pcm * pcm);
 
 int ba_transport_pcm_state_set(
-		struct ba_transport_pcm *pcm,
+		struct ba_transport_pcm * pcm,
 		enum ba_transport_pcm_state state);
 
 #define ba_transport_pcm_state_set_idle(pcm) \
@@ -181,7 +181,7 @@ int ba_transport_pcm_state_set(
 	ba_transport_pcm_state_set(pcm, BA_TRANSPORT_PCM_STATE_STOPPING)
 
 bool ba_transport_pcm_state_check(
-		const struct ba_transport_pcm *pcm,
+		const struct ba_transport_pcm * pcm,
 		enum ba_transport_pcm_state state);
 
 #define ba_transport_pcm_state_check_idle(pcm) \
@@ -192,7 +192,7 @@ bool ba_transport_pcm_state_check(
 	ba_transport_pcm_state_check(pcm, BA_TRANSPORT_PCM_STATE_TERMINATED)
 
 int ba_transport_pcm_state_wait(
-		const struct ba_transport_pcm *pcm,
+		const struct ba_transport_pcm * pcm,
 		enum ba_transport_pcm_state state);
 
 #define ba_transport_pcm_state_wait_running(pcm) \
@@ -207,60 +207,60 @@ typedef void *(*ba_transport_pcm_thread_func)(struct ba_transport_pcm *);
 #define debug_transport_pcm_thread_loop(pcm, tag) \
 	debug("PCM IO loop: %s: %s: %s", tag, __func__, ba_transport_debug_name((pcm)->t))
 
-void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm);
+void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm * pcm);
 
-struct ba_transport_pcm *ba_transport_pcm_ref(struct ba_transport_pcm *pcm);
-void ba_transport_pcm_unref(struct ba_transport_pcm *pcm);
+struct ba_transport_pcm * ba_transport_pcm_ref(struct ba_transport_pcm * pcm);
+void ba_transport_pcm_unref(struct ba_transport_pcm * pcm);
 
-int ba_transport_pcm_bt_acquire(struct ba_transport_pcm *pcm);
-int ba_transport_pcm_bt_release(struct ba_transport_pcm *pcm);
+int ba_transport_pcm_bt_acquire(struct ba_transport_pcm * pcm);
+int ba_transport_pcm_bt_release(struct ba_transport_pcm * pcm);
 
 int ba_transport_pcm_start(
-		struct ba_transport_pcm *pcm,
+		struct ba_transport_pcm * pcm,
 		ba_transport_pcm_thread_func th_func,
-		const char *name);
+		const char * name);
 void ba_transport_pcm_stop(
-		struct ba_transport_pcm *pcm);
+		struct ba_transport_pcm * pcm);
 
-int ba_transport_pcm_release(struct ba_transport_pcm *pcm);
+int ba_transport_pcm_release(struct ba_transport_pcm * pcm);
 
-int ba_transport_pcm_pause(struct ba_transport_pcm *pcm);
-int ba_transport_pcm_resume(struct ba_transport_pcm *pcm);
-int ba_transport_pcm_drain(struct ba_transport_pcm *pcm);
-int ba_transport_pcm_drop(struct ba_transport_pcm *pcm);
+int ba_transport_pcm_pause(struct ba_transport_pcm * pcm);
+int ba_transport_pcm_resume(struct ba_transport_pcm * pcm);
+int ba_transport_pcm_drain(struct ba_transport_pcm * pcm);
+int ba_transport_pcm_drop(struct ba_transport_pcm * pcm);
 
 int ba_transport_pcm_signal_send(
-		struct ba_transport_pcm *pcm,
+		struct ba_transport_pcm * pcm,
 		enum ba_transport_pcm_signal signal);
 enum ba_transport_pcm_signal ba_transport_pcm_signal_recv(
-		struct ba_transport_pcm *pcm);
+		struct ba_transport_pcm * pcm);
 
-bool ba_transport_pcm_is_active(const struct ba_transport_pcm *pcm);
+bool ba_transport_pcm_is_active(const struct ba_transport_pcm * pcm);
 
 unsigned int ba_transport_pcm_volume_level_to_range(int value, int max);
 int ba_transport_pcm_volume_range_to_level(int value, int max);
 
 void ba_transport_pcm_volume_set(
-		struct ba_transport_pcm_volume *volume,
-		const int *level,
-		const bool *soft_mute,
-		const bool *hard_mute);
+		struct ba_transport_pcm_volume * volume,
+		const int * level,
+		const bool * soft_mute,
+		const bool * hard_mute);
 
 int ba_transport_pcm_volume_sync(
-		struct ba_transport_pcm *pcm,
+		struct ba_transport_pcm * pcm,
 		unsigned int update_mask);
 
 int ba_transport_pcm_get_hardware_volume(
-		const struct ba_transport_pcm *pcm);
+		const struct ba_transport_pcm * pcm);
 
 int ba_transport_pcm_delay_get(
-		const struct ba_transport_pcm *pcm);
+		const struct ba_transport_pcm * pcm);
 
 int ba_transport_pcm_delay_sync(
-		struct ba_transport_pcm *pcm,
+		struct ba_transport_pcm * pcm,
 		unsigned int update_mask);
 
-const char *ba_transport_pcm_channel_to_string(
+const char * ba_transport_pcm_channel_to_string(
 		enum ba_transport_pcm_channel channel);
 
 #endif

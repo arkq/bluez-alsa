@@ -34,7 +34,7 @@ typedef struct {{
 
 {struct}Skeleton *{func}_skeleton_new(
     const GDBusInterfaceSkeletonVTable *vtable,
-    void *userdata,
+    void * userdata,
     GDestroyNotify userdata_free_func);
 '''
 
@@ -86,7 +86,7 @@ static void {func}_skeleton_init(G_GNUC_UNUSED {struct}Skeleton *ifs) {{
  *   occurs, NULL is returned. */
 {struct}Skeleton *{func}_skeleton_new(
     const GDBusInterfaceSkeletonVTable *vtable,
-    void *userdata,
+    void * userdata,
     GDestroyNotify userdata_free_func) {{
   const GType type = {func}_skeleton_get_type();
   return g_dbus_interface_skeleton_ex_new(type,

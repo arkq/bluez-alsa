@@ -22,18 +22,18 @@
 #include "shared/log.h"
 #include "shared/spawn.h"
 
-static int test_ctl_open(struct spawn_process *sp_ba_mock, snd_ctl_t **ctl, int mode) {
+static int test_ctl_open(struct spawn_process * sp_ba_mock, snd_ctl_t ** ctl, int mode) {
 	if (spawn_bluealsa_mock(sp_ba_mock, NULL, true,
-				"--timeout=1000",
-				"--profile=a2dp-source",
-				"--profile=a2dp-sink",
-				"--profile=hfp-ag",
-				NULL) == -1)
+	                        "--timeout=1000",
+	                        "--profile=a2dp-source",
+	                        "--profile=a2dp-sink",
+	                        "--profile=hfp-ag",
+	                        NULL) == -1)
 		return -1;
 	return snd_ctl_open(ctl, "bluealsa", mode);
 }
 
-static int test_pcm_close(struct spawn_process *sp_ba_mock, snd_ctl_t *ctl) {
+static int test_pcm_close(struct spawn_process * sp_ba_mock, snd_ctl_t * ctl) {
 	int rv = 0;
 	if (ctl != NULL)
 		rv = snd_ctl_close(ctl);
@@ -45,7 +45,7 @@ static int test_pcm_close(struct spawn_process *sp_ba_mock, snd_ctl_t *ctl) {
 }
 
 #if DEBUG
-static const char *test_ctl_event_elem_get_mask_name(snd_ctl_event_t *event) {
+static const char * test_ctl_event_elem_get_mask_name(snd_ctl_event_t * event) {
 	switch (snd_ctl_event_elem_get_mask(event)) {
 	case SND_CTL_EVENT_MASK_ADD:
 		return "ADD";
@@ -66,11 +66,11 @@ static const char *test_ctl_event_elem_get_mask_name(snd_ctl_event_t *event) {
 CK_START_TEST(test_controls) {
 
 	struct spawn_process sp_ba_mock;
-	snd_ctl_t *ctl = NULL;
+	snd_ctl_t * ctl = NULL;
 
 	ck_assert_int_eq(test_ctl_open(&sp_ba_mock, &ctl, 0), 0);
 
-	snd_ctl_elem_list_t *elems;
+	snd_ctl_elem_list_t * elems;
 	snd_ctl_elem_list_alloca(&elems);
 
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
@@ -98,21 +98,22 @@ CK_START_TEST(test_controls) {
 	snd_ctl_elem_list_free_space(elems);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_controls_battery) {
 
 	struct spawn_process sp_ba_mock;
-	snd_ctl_t *ctl = NULL;
+	snd_ctl_t * ctl = NULL;
 
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
-				"--timeout=1000",
-				"--profile=hsp-ag",
-				NULL), -1);
+	                                     "--timeout=1000",
+	                                     "--profile=hsp-ag",
+	                                     NULL), -1);
 
 	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa:EXT=battery", 0), 0);
 
-	snd_ctl_elem_list_t *elems;
+	snd_ctl_elem_list_t * elems;
 	snd_ctl_elem_list_alloca(&elems);
 
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
@@ -124,9 +125,9 @@ CK_START_TEST(test_controls_battery) {
 
 	/* Battery control element shall be last. */
 	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 4),
-			"23:45:67:89:AB:CD | Battery Playback Volume");
+	                 "23:45:67:89:AB:CD | Battery Playback Volume");
 
-	snd_ctl_elem_value_t *elem;
+	snd_ctl_elem_value_t * elem;
 	snd_ctl_elem_value_alloca(&elem);
 	snd_ctl_elem_value_set_numid(elem, snd_ctl_elem_list_get_numid(elems, 4));
 
@@ -139,22 +140,23 @@ CK_START_TEST(test_controls_battery) {
 	snd_ctl_elem_list_free_space(elems);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_controls_extended) {
 
 	struct spawn_process sp_ba_mock;
-	snd_ctl_t *ctl = NULL;
+	snd_ctl_t * ctl = NULL;
 
-	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
-				"--timeout=1000",
-				"--profile=a2dp-source",
-				"--profile=hfp-ag",
-				NULL), -1);
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, "test", true,
+	                                     "--timeout=1000",
+	                                     "--profile=a2dp-source",
+	                                     "--profile=hfp-ag",
+	                                     NULL), -1);
 
-	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa:EXT=yes", 0), 0);
+	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa:EXT=yes,SRV=org.bluealsa.test", 0), 0);
 
-	snd_ctl_elem_list_t *elems;
+	snd_ctl_elem_list_t * elems;
 	snd_ctl_elem_list_alloca(&elems);
 
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
@@ -175,7 +177,7 @@ CK_START_TEST(test_controls_extended) {
 	sco_codec_enum_items += 1;
 #endif
 
-	snd_ctl_elem_info_t *info;
+	snd_ctl_elem_info_t * info;
 	snd_ctl_elem_info_alloca(&info);
 
 	/* 12:34:56:78:9A:BC SCO Codec Enum */
@@ -191,7 +193,7 @@ CK_START_TEST(test_controls_extended) {
 	ck_assert_str_eq(snd_ctl_elem_info_get_item_name(info), "mSBC");
 #endif
 
-	snd_ctl_elem_value_t *elem;
+	snd_ctl_elem_value_t * elem;
 	snd_ctl_elem_value_alloca(&elem);
 
 	/* 12:34:56:78:9A:BC A2DP Codec Enum */
@@ -209,7 +211,7 @@ CK_START_TEST(test_controls_extended) {
 	/* get currently selected SCO codec */
 	ck_assert_int_eq(snd_ctl_elem_read(ctl, elem), 0);
 	ck_assert_int_eq(snd_ctl_elem_value_get_enumerated(elem, 0),
-			sco_codec_enum_items > 1 ? 1 : 0);
+	                 sco_codec_enum_items > 1 ? 1 : 0);
 #if ENABLE_MSBC
 	/* select SCO CVSD codec */
 	snd_ctl_elem_value_set_enumerated(elem, 0, 0);
@@ -219,24 +221,25 @@ CK_START_TEST(test_controls_extended) {
 	snd_ctl_elem_list_free_space(elems);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_bidirectional_a2dp) {
 #if ENABLE_FASTSTREAM
 
 	struct spawn_process sp_ba_mock;
-	snd_ctl_t *ctl = NULL;
+	snd_ctl_t * ctl = NULL;
 
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
-				"--timeout=1000",
-				"--profile=a2dp-source",
-				"--profile=a2dp-sink",
-				"--codec=FastStream",
-				NULL), -1);
+	                                     "--timeout=1000",
+	                                     "--profile=a2dp-source",
+	                                     "--profile=a2dp-sink",
+	                                     "--codec=FastStream",
+	                                     NULL), -1);
 
 	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa:BTT=yes", 0), 0);
 
-	snd_ctl_elem_list_t *elems;
+	snd_ctl_elem_list_t * elems;
 	snd_ctl_elem_list_alloca(&elems);
 
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
@@ -244,34 +247,41 @@ CK_START_TEST(test_bidirectional_a2dp) {
 	ck_assert_int_eq(snd_ctl_elem_list_alloc_space(elems, 10), 0);
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
 
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 4), "23:45:67:89:AB:C A2DP-SRC Playback Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 5), "23:45:67:89:AB:C A2DP-SRC Playback Volume");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 6), "23:45:67:89:AB:C A2DP-SRC Capture Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 7), "23:45:67:89:AB:C A2DP-SRC Capture Volume");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 8), "23:45:67:89:AB:C A2DP-SNK Capture Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 9), "23:45:67:89:AB:C A2DP-SNK Capture Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 4),
+	                 "23:45:67:89:AB:C A2DP-SRC Playback Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 5),
+	                 "23:45:67:89:AB:C A2DP-SRC Playback Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 6),
+	                 "23:45:67:89:AB:C A2DP-SRC Capture Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 7),
+	                 "23:45:67:89:AB:C A2DP-SRC Capture Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 8),
+	                 "23:45:67:89:AB:C A2DP-SNK Capture Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 9),
+	                 "23:45:67:89:AB:C A2DP-SNK Capture Volume");
 
 	snd_ctl_elem_list_free_space(elems);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
 #endif
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_device_name_duplicates) {
 
 	struct spawn_process sp_ba_mock;
-	snd_ctl_t *ctl = NULL;
+	snd_ctl_t * ctl = NULL;
 
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
-				"--timeout=1000",
-				"--profile=a2dp-source",
-				"--device-name=12:34:56:78:9A:BC:Long Bluetooth Device Name",
-				"--device-name=23:45:67:89:AB:CD:Long Bluetooth Device Name",
-				NULL), -1);
+	                                     "--timeout=1000",
+	                                     "--profile=a2dp-source",
+	                                     "--device-name=12:34:56:78:9A:BC:Long Bluetooth Device Name",
+	                                     "--device-name=23:45:67:89:AB:CD:Long Bluetooth Device Name",
+	                                     NULL), -1);
 
 	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa", 0), 0);
 
-	snd_ctl_elem_list_t *elems;
+	snd_ctl_elem_list_t * elems;
 	snd_ctl_elem_list_alloca(&elems);
 
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
@@ -279,24 +289,29 @@ CK_START_TEST(test_device_name_duplicates) {
 	ck_assert_int_eq(snd_ctl_elem_list_alloc_space(elems, 4), 0);
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
 
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 0), "Long Bluetooth Devi #1 A2DP Playback Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 1), "Long Bluetooth Devi #1 A2DP Playback Volume");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 2), "Long Bluetooth Devi #2 A2DP Playback Switch");
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 3), "Long Bluetooth Devi #2 A2DP Playback Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 0),
+	                 "Long Bluetooth Devi #1 A2DP Playback Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 1),
+	                 "Long Bluetooth Devi #1 A2DP Playback Volume");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 2),
+	                 "Long Bluetooth Devi #2 A2DP Playback Switch");
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 3),
+	                 "Long Bluetooth Devi #2 A2DP Playback Volume");
 
 	snd_ctl_elem_list_free_space(elems);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_mute_and_volume) {
 
 	struct spawn_process sp_ba_mock;
-	snd_ctl_t *ctl = NULL;
+	snd_ctl_t * ctl = NULL;
 
 	ck_assert_int_eq(test_ctl_open(&sp_ba_mock, &ctl, 0), 0);
 
-	snd_ctl_elem_value_t *elem_switch;
+	snd_ctl_elem_value_t * elem_switch;
 	snd_ctl_elem_value_alloca(&elem_switch);
 	/* 23:45:67:89:AB:CD A2DP Playback Switch */
 	snd_ctl_elem_value_set_numid(elem_switch, 9);
@@ -309,7 +324,7 @@ CK_START_TEST(test_mute_and_volume) {
 	snd_ctl_elem_value_set_boolean(elem_switch, 1, 0);
 	ck_assert_int_gt(snd_ctl_elem_write(ctl, elem_switch), 0);
 
-	snd_ctl_elem_value_t *elem_volume;
+	snd_ctl_elem_value_t * elem_volume;
 	snd_ctl_elem_value_alloca(&elem_volume);
 	/* 23:45:67:89:AB:CD A2DP Playback Volume */
 	snd_ctl_elem_value_set_numid(elem_volume, 10);
@@ -328,16 +343,17 @@ CK_START_TEST(test_mute_and_volume) {
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_volume_db_range) {
 
 	struct spawn_process sp_ba_mock;
-	snd_ctl_t *ctl = NULL;
+	snd_ctl_t * ctl = NULL;
 
 	ck_assert_int_eq(test_ctl_open(&sp_ba_mock, &ctl, 0), 0);
 
-	snd_ctl_elem_id_t *elem;
+	snd_ctl_elem_id_t * elem;
 	snd_ctl_elem_id_alloca(&elem);
 	/* 12:34:56:78:9A:BC A2DP Playback Volume */
 	snd_ctl_elem_id_set_numid(elem, 2);
@@ -349,29 +365,29 @@ CK_START_TEST(test_volume_db_range) {
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_single_device) {
 
 	struct spawn_process sp_ba_mock;
-	snd_ctl_t *ctl = NULL;
+	snd_ctl_t * ctl = NULL;
 
-	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, "test", true,
-				"--timeout=1000",
-				"--profile=a2dp-source",
-				"--profile=a2dp-sink",
-				NULL), -1);
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
+	                                     "--timeout=1000",
+	                                     "--profile=a2dp-source",
+	                                     "--profile=a2dp-sink",
+	                                     NULL), -1);
 
-	ck_assert_int_eq(snd_ctl_open(&ctl,
-				"bluealsa:DEV=00:00:00:00:00:00,SRV=org.bluealsa.test", 0), 0);
+	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa:DEV=00:00:00:00:00:00", 0), 0);
 
-	snd_ctl_card_info_t *info;
+	snd_ctl_card_info_t * info;
 	snd_ctl_card_info_alloca(&info);
 
 	ck_assert_int_eq(snd_ctl_card_info(ctl, info), 0);
 	ck_assert_str_eq(snd_ctl_card_info_get_name(info), "23:45:67:89:AB:CD");
 
-	snd_ctl_elem_list_t *elems;
+	snd_ctl_elem_list_t * elems;
 	snd_ctl_elem_list_alloca(&elems);
 
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
@@ -387,67 +403,67 @@ CK_START_TEST(test_single_device) {
 	snd_ctl_elem_list_free_space(elems);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_single_device_not_connected) {
 
 	struct spawn_process sp_ba_mock;
-	snd_ctl_t *ctl = NULL;
+	snd_ctl_t * ctl = NULL;
 
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
-				"--timeout=1000",
-				NULL), -1);
+	                                     "--timeout=1000",
+	                                     NULL), -1);
 
-	ck_assert_int_eq(snd_ctl_open(&ctl,
-				"bluealsa:DEV=00:00:00:00:00:00", 0), -ENODEV);
+	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa:DEV=00:00:00:00:00:00", 0), -ENODEV);
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_single_device_no_such_device) {
 
 	struct spawn_process sp_ba_mock;
-	snd_ctl_t *ctl = NULL;
+	snd_ctl_t * ctl = NULL;
 
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
-				"--timeout=1000",
-				"--profile=a2dp-source",
-				NULL), -1);
+	                                     "--timeout=1000",
+	                                     "--profile=a2dp-source",
+	                                     NULL), -1);
 
-	ck_assert_int_eq(snd_ctl_open(&ctl,
-				"bluealsa:DEV=DE:AD:12:34:56:78", 0), -ENODEV);
+	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa:DEV=DE:AD:12:34:56:78", 0), -ENODEV);
 
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_single_device_non_dynamic) {
 
 	struct spawn_process sp_ba_mock;
-	snd_ctl_t *ctl = NULL;
+	snd_ctl_t * ctl = NULL;
 
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
-				"--timeout=0",
-				"--profile=a2dp-sink",
-				"--profile=hsp-ag",
-				"--fuzzing=500",
-				NULL), -1);
+	                                     "--timeout=0",
+	                                     "--profile=a2dp-sink",
+	                                     "--profile=hsp-ag",
+	                                     "--fuzzing=500",
+	                                     NULL), -1);
 
-	ck_assert_int_eq(snd_ctl_open(&ctl,
-				"bluealsa:DEV=23:45:67:89:AB:CD,DYN=no", 0), 0);
+	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa:DEV=23:45:67:89:AB:CD,DYN=no", 0), 0);
 	ck_assert_int_eq(snd_ctl_subscribe_events(ctl, 1), 0);
 
-	snd_ctl_elem_list_t *elems;
+	snd_ctl_elem_list_t * elems;
 	snd_ctl_elem_list_alloca(&elems);
 
-	snd_ctl_event_t *event;
+	snd_ctl_event_t * event;
 	snd_ctl_event_malloc(&event);
 
 	ck_assert_int_eq(snd_ctl_elem_list(ctl, elems), 0);
 	ck_assert_int_eq(snd_ctl_elem_list_get_count(elems), 6);
 
-	snd_ctl_elem_value_t *elem_volume;
+	snd_ctl_elem_value_t * elem_volume;
 	snd_ctl_elem_value_alloca(&elem_volume);
 	/* A2DP Capture Volume */
 	snd_ctl_elem_value_set_numid(elem_volume, 2);
@@ -485,23 +501,24 @@ CK_START_TEST(test_single_device_non_dynamic) {
 	snd_ctl_event_free(event);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_notifications) {
 
 	struct spawn_process sp_ba_mock;
-	snd_ctl_t *ctl = NULL;
+	snd_ctl_t * ctl = NULL;
 
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, false,
-				"--timeout=10000",
-				"--profile=a2dp-source",
-				"--profile=hfp-ag",
-				"--fuzzing=250",
-				NULL), -1);
+	                                     "--timeout=10000",
+	                                     "--profile=a2dp-source",
+	                                     "--profile=hfp-ag",
+	                                     "--fuzzing=250",
+	                                     NULL), -1);
 
 	ck_assert_int_eq(snd_ctl_open(&ctl, "bluealsa:EXT=battery", 0), 0);
 
-	snd_ctl_event_t *event;
+	snd_ctl_event_t * event;
 	snd_ctl_event_malloc(&event);
 
 	ck_assert_int_eq(snd_ctl_subscribe_events(ctl, 1), 0);
@@ -511,7 +528,7 @@ CK_START_TEST(test_notifications) {
 		while (snd_ctl_read(ctl, event) == 1) {
 			ck_assert_int_eq(snd_ctl_event_get_type(event), SND_CTL_EVENT_ELEM);
 			debug("Event: %s: %s", test_ctl_event_elem_get_mask_name(event),
-					snd_ctl_event_elem_get_name(event));
+			      snd_ctl_event_elem_get_name(event));
 			events++;
 		}
 
@@ -548,19 +565,20 @@ CK_START_TEST(test_notifications) {
 	 *      the capture SCO addition. We shall account for this in the test, as
 	 *      it is not an error. */
 	ck_assert_int_eq(events == expected_events ||
-			events == expected_events - 2 ||
-			events == expected_events - 3, true);
+	                 events == expected_events - 2 ||
+	                 events == expected_events - 3, true);
 
 	snd_ctl_event_free(event);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_alsa_high_level_control_interface) {
 
 	struct spawn_process sp_ba_mock;
-	snd_ctl_t *ctl = NULL;
-	snd_hctl_t *hctl = NULL;
+	snd_ctl_t * ctl = NULL;
+	snd_hctl_t * hctl = NULL;
 
 	ck_assert_int_eq(test_ctl_open(&sp_ba_mock, &ctl, 0), 0);
 	ck_assert_int_eq(snd_hctl_open_ctl(&hctl, ctl), 0);
@@ -572,14 +590,15 @@ CK_START_TEST(test_alsa_high_level_control_interface) {
 	ck_assert_int_eq(snd_hctl_close(hctl), 0);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, NULL), 0);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
-int main(int argc, char *argv[]) {
+int main(int argc, char * argv[]) {
 	preload(argc, argv, ".libs/libalsaloader.so");
 
 	g_autofree char * argv_0 = strdup(argv[0]);
 	snprintf(bluealsad_mock_path, sizeof(bluealsad_mock_path),
-			"%s/mock/bluealsad-mock", dirname(argv_0));
+	         "%s/mock/bluealsad-mock", dirname(argv_0));
 
 	Suite * s = suite_create(__FILE__);
 	TCase * tc = tcase_create(__FILE__);

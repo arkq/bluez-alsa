@@ -42,7 +42,7 @@ struct at_reader {
 	struct bt_at at;
 	char buffer[256];
 	/* pointer to the next message within the buffer */
-	char *next;
+	char * next;
 };
 
 /**
@@ -54,11 +54,11 @@ struct at_reader {
  * @param fd RFCOMM socket file descriptor.
  * @param reader Pointer to initialized reader structure.
  * @return ERROR_CODE_OK on success, otherwise an appropriate error code. */
-static error_code_t rfcomm_read_at(int fd, struct at_reader *reader) {
+static error_code_t rfcomm_read_at(int fd, struct at_reader * reader) {
 
-	char *buffer = reader->buffer;
-	char *msg = reader->next;
-	char *tmp;
+	char * buffer = reader->buffer;
+	char * msg = reader->next;
+	char * tmp;
 
 	/* In case of reading more than one message from the RFCOMM, we have to
 	 * parse all of them before we can read from the socket once more. */
@@ -84,7 +84,7 @@ static error_code_t rfcomm_read_at(int fd, struct at_reader *reader) {
 	}
 
 	debug("Received AT message: %s: command=%s value=%s",
-			at_type2str(reader->at.type), reader->at.command, reader->at.value);
+	      at_type2str(reader->at.type), reader->at.command, reader->at.value);
 
 	reader->next = tmp[0] != '\0' ? tmp : NULL;
 	return ERROR_CODE_OK;
@@ -98,16 +98,16 @@ static error_code_t rfcomm_read_at(int fd, struct at_reader *reader) {
  * @param command AT command or response code.
  * @param value AT value or NULL if not applicable.
  * @return ERROR_CODE_OK on success, otherwise an appropriate error code. */
-static error_code_t rfcomm_write_at(int fd, enum bt_at_type type, const char *command,
-		const char *value) {
+static error_code_t rfcomm_write_at(int fd, enum bt_at_type type, const char * command,
+		const char * value) {
 
 	char msg[256];
 	size_t len;
 
 	debug("Sending AT message: %s: command=%s value=%s",
-			at_type2str(type),
-			command != NULL ? command : "(null)",
-			value != NULL ? value : "(null)");
+	      at_type2str(type),
+	      command != NULL ? command : "(null)",
+	      value != NULL ? value : "(null)");
 
 	at_build(msg, sizeof(msg), type, command, value);
 	len = strlen(msg);
@@ -122,15 +122,15 @@ static error_code_t rfcomm_write_at(int fd, enum bt_at_type type, const char *co
 
 /**
  * HFP set state wrapper for debugging purposes. */
-static void rfcomm_set_hfp_state(struct ba_rfcomm *r, enum hfp_slc_state state) {
+static void rfcomm_set_hfp_state(struct ba_rfcomm * r, enum hfp_slc_state state) {
 	debug("RFCOMM: %s state transition: %d -> %d",
-			ba_transport_debug_name(r->sco), r->state, state);
+	      ba_transport_debug_name(r->sco), r->state, state);
 	r->state = state;
 }
 
 /**
  * Finalize HFP codec selection - signal other threads. */
-static void rfcomm_finalize_codec_selection(struct ba_rfcomm *r) {
+static void rfcomm_finalize_codec_selection(struct ba_rfcomm * r) {
 
 	pthread_mutex_lock(&r->sco->codec_select_client_mtx);
 	r->codec_selection_done = true;
@@ -142,7 +142,7 @@ static void rfcomm_finalize_codec_selection(struct ba_rfcomm *r) {
 
 /**
  * Handle AT command response code. */
-static error_code_t rfcomm_handler_resp_ok_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_resp_ok_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 
 	r->handler_resp_ok_success = strcmp(at->value, "OK") == 0;
 
@@ -158,7 +158,7 @@ static error_code_t rfcomm_handler_resp_ok_cb(struct ba_rfcomm *r, const struct 
 
 /**
  * TEST: Standard indicator update AT command */
-static error_code_t rfcomm_handler_cind_test_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_cind_test_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 	(void)at;
 
 	const int fd = r->fd;
@@ -167,14 +167,14 @@ static error_code_t rfcomm_handler_cind_test_cb(struct ba_rfcomm *r, const struc
 	/* NOTE: The order of indicators in the CIND response message
 	 *       has to be consistent with the hfp_ind enumeration. */
 	if ((ec = rfcomm_write_at(fd, AT_TYPE_RESP, "+CIND",
-				"(\"service\",(0,1))"
-				",(\"call\",(0,1))"
-				",(\"callsetup\",(0-3))"
-				",(\"callheld\",(0-2))"
-				",(\"signal\",(0-5))"
-				",(\"roam\",(0,1))"
-				",(\"battchg\",(0-5))"
-			)) != ERROR_CODE_OK)
+	                          "(\"service\",(0,1))"
+	                          ",(\"call\",(0,1))"
+	                          ",(\"callsetup\",(0-3))"
+	                          ",(\"callheld\",(0-2))"
+	                          ",(\"signal\",(0-5))"
+	                          ",(\"roam\",(0,1))"
+	                          ",(\"battchg\",(0-5))"
+	                          )) != ERROR_CODE_OK)
 		return ec;
 	if ((ec = rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "OK")) != ERROR_CODE_OK)
 		return ec;
@@ -187,7 +187,7 @@ static error_code_t rfcomm_handler_cind_test_cb(struct ba_rfcomm *r, const struc
 
 /**
  * GET: Standard indicator update AT command */
-static error_code_t rfcomm_handler_cind_get_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_cind_get_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 	(void)at;
 
 	const int fd = r->fd;
@@ -209,7 +209,8 @@ static error_code_t rfcomm_handler_cind_get_cb(struct ba_rfcomm *r, const struct
 
 /**
  * RESP: Standard indicator update AT command */
-static error_code_t rfcomm_handler_cind_resp_test_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_cind_resp_test_cb(struct ba_rfcomm * r,
+		const struct bt_at * at) {
 	/* parse response for the +CIND TEST command */
 	if (at_parse_get_cind(at->value, r->hfp_ind_map) == -1)
 		warn("Couldn't parse AG indicators: %s", at->value);
@@ -220,10 +221,11 @@ static error_code_t rfcomm_handler_cind_resp_test_cb(struct ba_rfcomm *r, const 
 
 /**
  * RESP: Standard indicator update AT command */
-static error_code_t rfcomm_handler_cind_resp_get_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_cind_resp_get_cb(struct ba_rfcomm * r,
+		const struct bt_at * at) {
 
 	struct ba_device * const d = r->sco->d;
-	char *tmp = at->value;
+	char * tmp = at->value;
 
 	/* parse response for the +CIND GET command */
 	for (size_t i = 0; i < ARRAYSIZE(r->hfp_ind_map); i++) {
@@ -246,11 +248,11 @@ static error_code_t rfcomm_handler_cind_resp_get_cb(struct ba_rfcomm *r, const s
 
 /**
  * SET: Standard event reporting activation/deactivation AT command */
-static error_code_t rfcomm_handler_cmer_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_cmer_set_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 	(void)at;
 
 	const int fd = r->fd;
-	const char *resp = "OK";
+	const char * resp = "OK";
 	error_code_t ec;
 
 	if (at_parse_set_cmer(at->value, r->hfp_cmer) == -1) {
@@ -269,14 +271,14 @@ static error_code_t rfcomm_handler_cmer_set_cb(struct ba_rfcomm *r, const struct
 
 /**
  * RESP: Standard indicator events reporting unsolicited result code */
-static error_code_t rfcomm_handler_ciev_resp_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_ciev_resp_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 
 	struct ba_device * const d = r->sco->d;
 	unsigned int index;
 	unsigned int value;
 
 	if (sscanf(at->value, "%u,%u", &index, &value) == 2 &&
-			--index < ARRAYSIZE(r->hfp_ind_map)) {
+	    --index < ARRAYSIZE(r->hfp_ind_map)) {
 		r->hfp_ind[r->hfp_ind_map[index]] = value;
 		switch (r->hfp_ind_map[index]) {
 		case HFP_IND_BATTCHG:
@@ -294,10 +296,10 @@ static error_code_t rfcomm_handler_ciev_resp_cb(struct ba_rfcomm *r, const struc
 
 /**
  * SET: Bluetooth Indicators Activation */
-static error_code_t rfcomm_handler_bia_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_bia_set_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 
 	const int fd = r->fd;
-	const char *resp = "OK";
+	const char * resp = "OK";
 
 	if (at_parse_set_bia(at->value, r->hfp_ind_state) == -1) {
 		warn("Couldn't parse BIA indicators activation: %s", at->value);
@@ -311,9 +313,9 @@ static error_code_t rfcomm_handler_bia_set_cb(struct ba_rfcomm *r, const struct 
 # define debug_ag_features(features)
 #else
 static void debug_ag_features(uint32_t features) {
-	const char *names[32] = { NULL };
+	const char * names[32] = { NULL };
 	hfp_ag_features_to_strings(features, names, ARRAYSIZE(names));
-	char *tmp = g_strjoinv(", ", (char **)names);
+	char * tmp = g_strjoinv(", ", (char **)names);
 	debug("AG features [%u]: %s", features, tmp);
 	g_free(tmp);
 }
@@ -323,9 +325,9 @@ static void debug_ag_features(uint32_t features) {
 # define debug_hf_features(features)
 #else
 static void debug_hf_features(uint32_t features) {
-	const char *names[32] = { NULL };
+	const char * names[32] = { NULL };
 	hfp_hf_features_to_strings(features, names, ARRAYSIZE(names));
-	char *tmp = g_strjoinv(", ", (char **)names);
+	char * tmp = g_strjoinv(", ", (char **)names);
 	debug("HF features [%u]: %s", features, tmp);
 	g_free(tmp);
 }
@@ -333,7 +335,7 @@ static void debug_hf_features(uint32_t features) {
 
 /**
  * SET: Bluetooth Retrieve Supported Features */
-static error_code_t rfcomm_handler_brsf_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_brsf_set_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 
 	struct ba_transport * const t_sco = r->sco;
 	const int fd = r->fd;
@@ -384,7 +386,7 @@ static error_code_t rfcomm_handler_brsf_set_cb(struct ba_rfcomm *r, const struct
 
 /**
  * RESP: Bluetooth Retrieve Supported Features */
-static error_code_t rfcomm_handler_brsf_resp_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_brsf_resp_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 
 	struct ba_transport * const t_sco = r->sco;
 
@@ -420,7 +422,7 @@ static error_code_t rfcomm_handler_brsf_resp_cb(struct ba_rfcomm *r, const struc
 
 /**
  * SET: Noise Reduction and Echo Canceling */
-static error_code_t rfcomm_handler_nrec_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_nrec_set_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 	(void)at;
 	const int fd = r->fd;
 	/* Currently, we are not supporting Noise Reduction & Echo Canceling,
@@ -430,10 +432,10 @@ static error_code_t rfcomm_handler_nrec_set_cb(struct ba_rfcomm *r, const struct
 
 /**
  * SET: Gain of Microphone */
-static error_code_t rfcomm_handler_vgm_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_vgm_set_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 
 	struct ba_transport * const t_sco = r->sco;
-	struct ba_transport_pcm *pcm = &t_sco->sco.pcm_mic;
+	struct ba_transport_pcm * pcm = &t_sco->sco.pcm_mic;
 	const int gain = r->gain_mic = atoi(at->value);
 	const int fd = r->fd;
 
@@ -454,10 +456,10 @@ static error_code_t rfcomm_handler_vgm_set_cb(struct ba_rfcomm *r, const struct 
 
 /**
  * RESP: Gain of Microphone */
-static error_code_t rfcomm_handler_vgm_resp_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_vgm_resp_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 
 	struct ba_transport * const t_sco = r->sco;
-	struct ba_transport_pcm *pcm = &t_sco->sco.pcm_mic;
+	struct ba_transport_pcm * pcm = &t_sco->sco.pcm_mic;
 
 	int gain = r->gain_mic = atoi(at->value);
 	int level = ba_transport_pcm_volume_range_to_level(gain, HFP_VOLUME_GAIN_MAX);
@@ -473,10 +475,10 @@ static error_code_t rfcomm_handler_vgm_resp_cb(struct ba_rfcomm *r, const struct
 
 /**
  * SET: Gain of Speaker */
-static error_code_t rfcomm_handler_vgs_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_vgs_set_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 
 	struct ba_transport * const t_sco = r->sco;
-	struct ba_transport_pcm *pcm = &t_sco->sco.pcm_spk;
+	struct ba_transport_pcm * pcm = &t_sco->sco.pcm_spk;
 	const int gain = r->gain_spk = atoi(at->value);
 	const int fd = r->fd;
 
@@ -497,10 +499,10 @@ static error_code_t rfcomm_handler_vgs_set_cb(struct ba_rfcomm *r, const struct 
 
 /**
  * RESP: Gain of Speaker */
-static error_code_t rfcomm_handler_vgs_resp_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_vgs_resp_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 
 	struct ba_transport * const t_sco = r->sco;
-	struct ba_transport_pcm *pcm = &t_sco->sco.pcm_spk;
+	struct ba_transport_pcm * pcm = &t_sco->sco.pcm_spk;
 
 	int gain = r->gain_spk = atoi(at->value);
 	int level = ba_transport_pcm_volume_range_to_level(gain, HFP_VOLUME_GAIN_MAX);
@@ -516,7 +518,7 @@ static error_code_t rfcomm_handler_vgs_resp_cb(struct ba_rfcomm *r, const struct
 
 /**
  * SET: Bluetooth Response and Hold Feature */
-static error_code_t rfcomm_handler_btrh_get_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_btrh_get_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 	(void)at;
 	const int fd = r->fd;
 	/* Currently, we are not supporting Respond & Hold feature, so just
@@ -525,12 +527,12 @@ static error_code_t rfcomm_handler_btrh_get_cb(struct ba_rfcomm *r, const struct
 }
 
 #if ENABLE_HFP_CODEC_SELECTION
-static error_code_t rfcomm_hfp_setup_codec_connection(struct ba_rfcomm *r);
+static error_code_t rfcomm_hfp_setup_codec_connection(struct ba_rfcomm * r);
 #endif
 
 /**
  * SET: Bluetooth Codec Connection */
-static error_code_t rfcomm_handler_bcc_cmd_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_bcc_cmd_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 	(void)at;
 	const int fd = r->fd;
 	error_code_t ec;
@@ -548,7 +550,7 @@ static error_code_t rfcomm_handler_bcc_cmd_cb(struct ba_rfcomm *r, const struct 
 
 /**
  * SET: Bluetooth Codec Selection */
-static error_code_t rfcomm_handler_bcs_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_bcs_set_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 
 	struct ba_transport * const t_sco = r->sco;
 	const int fd = r->fd;
@@ -573,7 +575,7 @@ final:
 	return ec;
 }
 
-static error_code_t rfcomm_handler_resp_bcs_ok_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_resp_bcs_ok_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 
 	struct ba_transport * const t_sco = r->sco;
 	error_code_t ec;
@@ -592,12 +594,14 @@ static error_code_t rfcomm_handler_resp_bcs_ok_cb(struct ba_rfcomm *r, const str
 
 /**
  * RESP: Bluetooth Codec Selection */
-static error_code_t rfcomm_handler_bcs_resp_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_bcs_resp_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 
 	static const struct ba_rfcomm_handler handler_supported = {
-		AT_TYPE_RESP, "", rfcomm_handler_resp_bcs_ok_cb };
+		AT_TYPE_RESP, "", rfcomm_handler_resp_bcs_ok_cb,
+	};
 	static const struct ba_rfcomm_handler handler_unsupported = {
-		AT_TYPE_RESP, "", rfcomm_handler_resp_ok_cb };
+		AT_TYPE_RESP, "", rfcomm_handler_resp_ok_cb,
+	};
 
 	const struct {
 		uint8_t codec_id;
@@ -653,10 +657,10 @@ static error_code_t rfcomm_handler_bcs_resp_cb(struct ba_rfcomm *r, const struct
 
 /**
  * SET: Bluetooth Available Codecs */
-static error_code_t rfcomm_handler_bac_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_bac_set_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 
 	const int fd = r->fd;
-	char *tmp = at->value - 1;
+	char * tmp = at->value - 1;
 	error_code_t ec;
 
 	/* We shall use the information on codecs available in HF
@@ -699,13 +703,13 @@ final:
 
 /**
  * SET: Android Ext: XHSMICMUTE: Zebra HS3100 microphone mute */
-static error_code_t rfcomm_handler_android_set_xhsmicmute(struct ba_rfcomm *r, char *value) {
+static error_code_t rfcomm_handler_android_set_xhsmicmute(struct ba_rfcomm * r, char * value) {
 
 	if (value == NULL)
 		return ERROR_SYSTEM(EINVAL);
 
 	struct ba_transport * const t_sco = r->sco;
-	struct ba_transport_pcm *pcm = &t_sco->sco.pcm_mic;
+	struct ba_transport_pcm * pcm = &t_sco->sco.pcm_mic;
 	const bool muted = value[0] == '0' ? false : true;
 	const int fd = r->fd;
 
@@ -720,7 +724,7 @@ static error_code_t rfcomm_handler_android_set_xhsmicmute(struct ba_rfcomm *r, c
 
 /**
  * SET: Android Ext: XHSTBATSOC: Zebra HS3100 battery state of charge */
-static error_code_t rfcomm_handler_android_set_xhstbatsoc(struct ba_rfcomm *r, char *value) {
+static error_code_t rfcomm_handler_android_set_xhstbatsoc(struct ba_rfcomm * r, char * value) {
 
 	if (value == NULL)
 		return ERROR_SYSTEM(EINVAL);
@@ -728,7 +732,7 @@ static error_code_t rfcomm_handler_android_set_xhstbatsoc(struct ba_rfcomm *r, c
 	struct ba_device * const d = r->sco->d;
 	const int fd = r->fd;
 
-	char *ptr = value;
+	char * ptr = value;
 	d->battery.charge = atoi(strsep(&ptr, ","));
 	bluealsa_dbus_rfcomm_update(r, BA_DBUS_RFCOMM_UPDATE_BATTERY);
 	bluez_battery_provider_update(d);
@@ -738,7 +742,7 @@ static error_code_t rfcomm_handler_android_set_xhstbatsoc(struct ba_rfcomm *r, c
 
 /**
  * SET: Android Ext: XHSTBATSOH: Zebra HS3100 battery state of health */
-static error_code_t rfcomm_handler_android_set_xhstbatsoh(struct ba_rfcomm *r, char *value) {
+static error_code_t rfcomm_handler_android_set_xhstbatsoh(struct ba_rfcomm * r, char * value) {
 
 	if (value == NULL)
 		return ERROR_SYSTEM(EINVAL);
@@ -746,7 +750,7 @@ static error_code_t rfcomm_handler_android_set_xhstbatsoh(struct ba_rfcomm *r, c
 	struct ba_device * const d = r->sco->d;
 	const int fd = r->fd;
 
-	char *ptr = value;
+	char * ptr = value;
 	d->battery.health = atoi(strsep(&ptr, ","));
 	bluealsa_dbus_rfcomm_update(r, BA_DBUS_RFCOMM_UPDATE_BATTERY);
 	bluez_battery_provider_update(d);
@@ -756,10 +760,10 @@ static error_code_t rfcomm_handler_android_set_xhstbatsoh(struct ba_rfcomm *r, c
 
 /**
  * SET: Android Ext: Report various state changes */
-static error_code_t rfcomm_handler_android_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_android_set_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 
 	static const struct {
-		const char *name;
+		const char * name;
 		error_code_t (*cb)(struct ba_rfcomm *, char *);
 	} handlers[] = {
 		{ "XHSMICMUTE", rfcomm_handler_android_set_xhsmicmute },
@@ -767,9 +771,9 @@ static error_code_t rfcomm_handler_android_set_cb(struct ba_rfcomm *r, const str
 		{ "XHSTBATSOH", rfcomm_handler_android_set_xhstbatsoh },
 	};
 
-	char *sep = ",";
-	char *value = at->value;
-	char *name = strsep(&value, sep);
+	char * sep = ",";
+	char * value = at->value;
+	char * name = strsep(&value, sep);
 	error_code_t ec;
 
 	for (size_t i = 0; i < ARRAYSIZE(handlers); i++)
@@ -787,12 +791,13 @@ static error_code_t rfcomm_handler_android_set_cb(struct ba_rfcomm *r, const str
 
 /**
  * SET: Apple Ext: Report a headset state change */
-static error_code_t rfcomm_handler_iphoneaccev_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_iphoneaccev_set_cb(struct ba_rfcomm * r,
+		const struct bt_at * at) {
 
 	struct ba_device * const d = r->sco->d;
 	const int fd = r->fd;
 
-	char *ptr = at->value;
+	char * ptr = at->value;
 	size_t count = atoi(strsep(&ptr, ","));
 	char tmp;
 
@@ -819,21 +824,21 @@ static error_code_t rfcomm_handler_iphoneaccev_set_cb(struct ba_rfcomm *r, const
 
 /**
  * SET: Apple Ext: Enable custom AT commands from an accessory */
-static error_code_t rfcomm_handler_xapl_set_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_xapl_set_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 
 	struct ba_device * const d = r->sco->d;
 	const int fd = r->fd;
 	error_code_t ec;
 
 	if (at_parse_set_xapl(at->value, &d->xapl.vendor_id, &d->xapl.product_id,
-				&d->xapl.sw_version, &d->xapl.features) == -1) {
+	                      &d->xapl.sw_version, &d->xapl.features) == -1) {
 		warn("Invalid +XAPL value: %s", at->value);
 		return rfcomm_write_at(fd, AT_TYPE_RESP, NULL, "ERROR");
 	}
 
 	char resp[32];
 	snprintf(resp, sizeof(resp), "+XAPL=%s,%u",
-			config.hfp.xapl_product_name, config.hfp.xapl_features);
+	         config.hfp.xapl_product_name, config.hfp.xapl_features);
 
 	if ((ec = rfcomm_write_at(fd, AT_TYPE_RESP, NULL, resp)) != ERROR_CODE_OK)
 		return ec;
@@ -844,12 +849,14 @@ static error_code_t rfcomm_handler_xapl_set_cb(struct ba_rfcomm *r, const struct
 
 /**
  * RESP: Apple Ext: Enable custom AT commands from an accessory */
-static error_code_t rfcomm_handler_xapl_resp_cb(struct ba_rfcomm *r, const struct bt_at *at) {
+static error_code_t rfcomm_handler_xapl_resp_cb(struct ba_rfcomm * r, const struct bt_at * at) {
 
 	static const struct ba_rfcomm_handler handler = {
-		AT_TYPE_RESP, "", rfcomm_handler_resp_ok_cb };
+		AT_TYPE_RESP, "", rfcomm_handler_resp_ok_cb,
+	};
+
 	struct ba_device * const d = r->sco->d;
-	char *tmp;
+	char * tmp;
 
 	if ((tmp = strrchr(at->value, ',')) == NULL)
 		return ERROR_SYSTEM(EINVAL);
@@ -861,59 +868,83 @@ static error_code_t rfcomm_handler_xapl_resp_cb(struct ba_rfcomm *r, const struc
 }
 
 static const struct ba_rfcomm_handler rfcomm_handler_resp_ok = {
-	AT_TYPE_RESP, "", rfcomm_handler_resp_ok_cb };
+	AT_TYPE_RESP, "", rfcomm_handler_resp_ok_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_cind_test = {
-	AT_TYPE_CMD_TEST, "+CIND", rfcomm_handler_cind_test_cb };
+	AT_TYPE_CMD_TEST, "+CIND", rfcomm_handler_cind_test_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_cind_get = {
-	AT_TYPE_CMD_GET, "+CIND", rfcomm_handler_cind_get_cb };
+	AT_TYPE_CMD_GET, "+CIND", rfcomm_handler_cind_get_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_cind_resp_test = {
-	AT_TYPE_RESP, "+CIND", rfcomm_handler_cind_resp_test_cb };
+	AT_TYPE_RESP, "+CIND", rfcomm_handler_cind_resp_test_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_cind_resp_get = {
-	AT_TYPE_RESP, "+CIND", rfcomm_handler_cind_resp_get_cb };
+	AT_TYPE_RESP, "+CIND", rfcomm_handler_cind_resp_get_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_cmer_set = {
-	AT_TYPE_CMD_SET, "+CMER", rfcomm_handler_cmer_set_cb };
+	AT_TYPE_CMD_SET, "+CMER", rfcomm_handler_cmer_set_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_ciev_resp = {
-	AT_TYPE_RESP, "+CIEV", rfcomm_handler_ciev_resp_cb };
+	AT_TYPE_RESP, "+CIEV", rfcomm_handler_ciev_resp_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_bia_set = {
-	AT_TYPE_CMD_SET, "+BIA", rfcomm_handler_bia_set_cb };
+	AT_TYPE_CMD_SET, "+BIA", rfcomm_handler_bia_set_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_brsf_set = {
-	AT_TYPE_CMD_SET, "+BRSF", rfcomm_handler_brsf_set_cb };
+	AT_TYPE_CMD_SET, "+BRSF", rfcomm_handler_brsf_set_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_brsf_resp = {
-	AT_TYPE_RESP, "+BRSF", rfcomm_handler_brsf_resp_cb };
+	AT_TYPE_RESP, "+BRSF", rfcomm_handler_brsf_resp_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_nrec_set = {
-	AT_TYPE_CMD_SET, "+NREC", rfcomm_handler_nrec_set_cb };
+	AT_TYPE_CMD_SET, "+NREC", rfcomm_handler_nrec_set_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_vgm_set = {
-	AT_TYPE_CMD_SET, "+VGM", rfcomm_handler_vgm_set_cb };
+	AT_TYPE_CMD_SET, "+VGM", rfcomm_handler_vgm_set_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_vgm_resp = {
-	AT_TYPE_RESP, "+VGM", rfcomm_handler_vgm_resp_cb };
+	AT_TYPE_RESP, "+VGM", rfcomm_handler_vgm_resp_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_vgs_set = {
-	AT_TYPE_CMD_SET, "+VGS", rfcomm_handler_vgs_set_cb };
+	AT_TYPE_CMD_SET, "+VGS", rfcomm_handler_vgs_set_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_vgs_resp = {
-	AT_TYPE_RESP, "+VGS", rfcomm_handler_vgs_resp_cb };
+	AT_TYPE_RESP, "+VGS", rfcomm_handler_vgs_resp_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_btrh_get = {
-	AT_TYPE_CMD_GET, "+BTRH", rfcomm_handler_btrh_get_cb };
+	AT_TYPE_CMD_GET, "+BTRH", rfcomm_handler_btrh_get_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_bcc_cmd = {
-	AT_TYPE_CMD, "+BCC", rfcomm_handler_bcc_cmd_cb };
+	AT_TYPE_CMD, "+BCC", rfcomm_handler_bcc_cmd_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_bcs_set = {
-	AT_TYPE_CMD_SET, "+BCS", rfcomm_handler_bcs_set_cb };
+	AT_TYPE_CMD_SET, "+BCS", rfcomm_handler_bcs_set_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_bcs_resp = {
-	AT_TYPE_RESP, "+BCS", rfcomm_handler_bcs_resp_cb };
+	AT_TYPE_RESP, "+BCS", rfcomm_handler_bcs_resp_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_bac_set = {
-	AT_TYPE_CMD_SET, "+BAC", rfcomm_handler_bac_set_cb };
+	AT_TYPE_CMD_SET, "+BAC", rfcomm_handler_bac_set_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_android_set = {
-	AT_TYPE_CMD_SET, "+ANDROID", rfcomm_handler_android_set_cb };
+	AT_TYPE_CMD_SET, "+ANDROID", rfcomm_handler_android_set_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_iphoneaccev_set = {
-	AT_TYPE_CMD_SET, "+IPHONEACCEV", rfcomm_handler_iphoneaccev_set_cb };
+	AT_TYPE_CMD_SET, "+IPHONEACCEV", rfcomm_handler_iphoneaccev_set_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_xapl_set = {
-	AT_TYPE_CMD_SET, "+XAPL", rfcomm_handler_xapl_set_cb };
+	AT_TYPE_CMD_SET, "+XAPL", rfcomm_handler_xapl_set_cb,
+};
 static const struct ba_rfcomm_handler rfcomm_handler_xapl_resp = {
-	AT_TYPE_RESP, "+XAPL", rfcomm_handler_xapl_resp_cb };
+	AT_TYPE_RESP, "+XAPL", rfcomm_handler_xapl_resp_cb,
+};
 
 /**
  * Get callback (if available) for given AT message. */
-static ba_rfcomm_callback *rfcomm_get_callback(const struct bt_at *at) {
+static ba_rfcomm_callback * rfcomm_get_callback(const struct bt_at * at) {
 
-	static const struct ba_rfcomm_handler *handlers[] = {
+	static const struct ba_rfcomm_handler * handlers[] = {
 		&rfcomm_handler_resp_ok,
 		&rfcomm_handler_cind_test,
 		&rfcomm_handler_cind_get,
@@ -948,13 +979,13 @@ static ba_rfcomm_callback *rfcomm_get_callback(const struct bt_at *at) {
 	return NULL;
 }
 
-static enum ba_rfcomm_signal rfcomm_recv_signal(struct ba_rfcomm *r) {
+static enum ba_rfcomm_signal rfcomm_recv_signal(struct ba_rfcomm * r) {
 
 	enum ba_rfcomm_signal sig;
 	ssize_t ret;
 
 	while ((ret = read(r->sig_fd[0], &sig, sizeof(sig))) == -1 &&
-			errno == EINTR)
+	       errno == EINTR)
 		continue;
 
 	if (ret == sizeof(sig))
@@ -968,15 +999,15 @@ static enum ba_rfcomm_signal rfcomm_recv_signal(struct ba_rfcomm *r) {
 
 /**
  * Set HFP codec for the given Service Level Connection. */
-static error_code_t rfcomm_hfp_set_codec(struct ba_rfcomm *r, uint8_t codec_id) {
+static error_code_t rfcomm_hfp_set_codec(struct ba_rfcomm * r, uint8_t codec_id) {
 
 	struct ba_transport * const t_sco = r->sco;
 	const int fd = r->fd;
 	error_code_t ec = ERROR_CODE_OK;
 
 	debug("RFCOMM: %s setting codec: %s",
-			ba_transport_debug_name(t_sco),
-			hfp_codec_to_string(codec_id));
+	      ba_transport_debug_name(t_sco),
+	      hfp_codec_to_string(codec_id));
 
 	/* SLC is required for codec connection */
 	if (r->state != HFP_SLC_CONNECTED)
@@ -1002,18 +1033,18 @@ fail:
 
 /**
  * Try to setup HFP codec connection. */
-static error_code_t rfcomm_hfp_setup_codec_connection(struct ba_rfcomm *r) {
+static error_code_t rfcomm_hfp_setup_codec_connection(struct ba_rfcomm * r) {
 
 	const struct {
 		uint8_t codec_id;
 		bool is_supported;
 	} codecs[] = {
-#if ENABLE_LC3_SWB
+# if ENABLE_LC3_SWB
 		{ HFP_CODEC_LC3_SWB, r->ag_codecs.lc3_swb && r->hf_codecs.lc3_swb },
-#endif
-#if ENABLE_MSBC
+# endif
+# if ENABLE_MSBC
 		{ HFP_CODEC_MSBC, r->ag_codecs.msbc && r->hf_codecs.msbc },
-#endif
+# endif
 		{ HFP_CODEC_CVSD, r->ag_codecs.cvsd && r->hf_codecs.cvsd },
 	};
 
@@ -1053,7 +1084,7 @@ static error_code_t rfcomm_hfp_setup_codec_connection(struct ba_rfcomm *r) {
 
 /**
  * Notify connected BT device about host battery level change. */
-static error_code_t rfcomm_notify_battery_level_change(struct ba_rfcomm *r) {
+static error_code_t rfcomm_notify_battery_level_change(struct ba_rfcomm * r) {
 
 	struct ba_transport * const t_sco = r->sco;
 	const int fd = r->fd;
@@ -1065,14 +1096,14 @@ static error_code_t rfcomm_notify_battery_level_change(struct ba_rfcomm *r) {
 
 	/* for HFP-AG return battery level indicator if reporting is enabled */
 	if (t_sco->profile & BA_TRANSPORT_PROFILE_HFP_AG &&
-			r->hfp_cmer[3] > 0 && r->hfp_ind_state[HFP_IND_BATTCHG]) {
+	    r->hfp_cmer[3] > 0 && r->hfp_ind_state[HFP_IND_BATTCHG]) {
 		const unsigned int level = config.battery.level * 6 / 100;
 		sprintf(tmp, "%d,%d", HFP_IND_BATTCHG, MIN(level, 5));
 		return rfcomm_write_at(fd, AT_TYPE_RESP, "+CIEV", tmp);
 	}
 
 	if (t_sco->profile & BA_TRANSPORT_PROFILE_MASK_HF &&
-			t_sco->d->xapl.features & (XAPL_FEATURE_BATTERY | XAPL_FEATURE_DOCKING)) {
+	    t_sco->d->xapl.features & (XAPL_FEATURE_BATTERY | XAPL_FEATURE_DOCKING)) {
 		const unsigned int level = config.battery.level * 10 / 100;
 		sprintf(tmp, "2,1,%d,2,0", MIN(level, 9));
 		if ((ec = rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+IPHONEACCEV", tmp)) != ERROR_CODE_OK)
@@ -1085,16 +1116,15 @@ static error_code_t rfcomm_notify_battery_level_change(struct ba_rfcomm *r) {
 
 /**
  * Notify connected BT device about microphone volume change. */
-static error_code_t rfcomm_notify_volume_change_mic(struct ba_rfcomm *r, bool force) {
+static error_code_t rfcomm_notify_volume_change_mic(struct ba_rfcomm * r, bool force) {
 
 	struct ba_transport * const t_sco = r->sco;
-	struct ba_transport_pcm *pcm = &t_sco->sco.pcm_mic;
+	struct ba_transport_pcm * pcm = &t_sco->sco.pcm_mic;
 	const int fd = r->fd;
 	error_code_t ec;
 	char tmp[24];
 
-	int gain = ba_transport_pcm_volume_level_to_range(
-			pcm->volume[0].level, HFP_VOLUME_GAIN_MAX);
+	int gain = ba_transport_pcm_volume_level_to_range(pcm->volume[0].level, HFP_VOLUME_GAIN_MAX);
 	if (!force && r->gain_mic == gain)
 		return ERROR_CODE_OK;
 
@@ -1118,16 +1148,15 @@ static error_code_t rfcomm_notify_volume_change_mic(struct ba_rfcomm *r, bool fo
 
 /**
  * Notify connected BT device about speaker volume change. */
-static error_code_t rfcomm_notify_volume_change_spk(struct ba_rfcomm *r, bool force) {
+static error_code_t rfcomm_notify_volume_change_spk(struct ba_rfcomm * r, bool force) {
 
 	struct ba_transport * const t_sco = r->sco;
-	struct ba_transport_pcm *pcm = &t_sco->sco.pcm_spk;
+	struct ba_transport_pcm * pcm = &t_sco->sco.pcm_spk;
 	const int fd = r->fd;
 	error_code_t ec;
 	char tmp[24];
 
-	int gain = ba_transport_pcm_volume_level_to_range(
-			pcm->volume[0].level, HFP_VOLUME_GAIN_MAX);
+	int gain = ba_transport_pcm_volume_level_to_range(pcm->volume[0].level, HFP_VOLUME_GAIN_MAX);
 	if (!force && r->gain_spk == gain)
 		return ERROR_CODE_OK;
 
@@ -1198,8 +1227,9 @@ static error_code_t rfcomm_drive_slc(struct ba_rfcomm * r) {
 			/* Process with codecs advertisement only if both
 			 * sides support the codec negotiation feature. */
 			if (r->ag_features & HFP_AG_FEAT_CODEC &&
-					r->hf_features & HFP_HF_FEAT_CODEC) {
-				if ((ec = rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+BAC", r->hf_bac_bcs_string)) != ERROR_CODE_OK)
+			    r->hf_features & HFP_HF_FEAT_CODEC) {
+				if ((ec = rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+BAC",
+				                          r->hf_bac_bcs_string)) != ERROR_CODE_OK)
 					return ec;
 				r->handler = &rfcomm_handler_resp_ok;
 				r->handler_resp_ok_new_state = HFP_SLC_BAC_SET_OK;
@@ -1240,9 +1270,9 @@ static error_code_t rfcomm_drive_slc(struct ba_rfcomm * r) {
 			 * notify BlueALSA D-Bus clients about the change. */
 			if (ba_transport_get_codec(t_sco) != HFP_CODEC_UNDEFINED) {
 				bluealsa_dbus_pcm_update(&t_sco->sco.pcm_spk,
-						BA_DBUS_PCM_UPDATE_RATE | BA_DBUS_PCM_UPDATE_CODEC);
+				                         BA_DBUS_PCM_UPDATE_RATE | BA_DBUS_PCM_UPDATE_CODEC);
 				bluealsa_dbus_pcm_update(&t_sco->sco.pcm_mic,
-						BA_DBUS_PCM_UPDATE_RATE | BA_DBUS_PCM_UPDATE_CODEC);
+				                         BA_DBUS_PCM_UPDATE_RATE | BA_DBUS_PCM_UPDATE_CODEC);
 			}
 		}
 
@@ -1265,9 +1295,9 @@ static error_code_t rfcomm_drive_slc(struct ba_rfcomm * r) {
 			 * notify BlueALSA D-Bus clients about the change. */
 			if (ba_transport_get_codec(t_sco) != HFP_CODEC_UNDEFINED) {
 				bluealsa_dbus_pcm_update(&t_sco->sco.pcm_spk,
-						BA_DBUS_PCM_UPDATE_RATE | BA_DBUS_PCM_UPDATE_CODEC);
+				                         BA_DBUS_PCM_UPDATE_RATE | BA_DBUS_PCM_UPDATE_CODEC);
 				bluealsa_dbus_pcm_update(&t_sco->sco.pcm_mic,
-						BA_DBUS_PCM_UPDATE_RATE | BA_DBUS_PCM_UPDATE_CODEC);
+				                         BA_DBUS_PCM_UPDATE_RATE | BA_DBUS_PCM_UPDATE_CODEC);
 			}
 		}
 
@@ -1308,8 +1338,8 @@ static error_code_t rfcomm_drive_setup(struct ba_rfcomm * r) {
 			break;
 		case HFP_SETUP_ACCESSORY_XAPL:
 			sprintf(tmp, "%04X-%04X-%04X,%u",
-					config.hfp.xapl_vendor_id, config.hfp.xapl_product_id,
-					config.hfp.xapl_sw_version, config.hfp.xapl_features);
+			        config.hfp.xapl_vendor_id, config.hfp.xapl_product_id,
+			        config.hfp.xapl_sw_version, config.hfp.xapl_features);
 			if ((ec = rfcomm_write_at(fd, AT_TYPE_CMD_SET, "+XAPL", tmp)) != ERROR_CODE_OK)
 				return ec;
 			r->handler = &rfcomm_handler_xapl_resp;
@@ -1338,14 +1368,14 @@ static error_code_t rfcomm_drive_setup(struct ba_rfcomm * r) {
 	/* If HFP transport codec is already selected (e.g. device
 	 * does not support mSBC) mark setup as completed. */
 	if (t_sco->profile & BA_TRANSPORT_PROFILE_HFP_AG &&
-			ba_transport_get_codec(t_sco) != HFP_CODEC_UNDEFINED)
+	    ba_transport_get_codec(t_sco) != HFP_CODEC_UNDEFINED)
 		r->setup = HFP_SETUP_COMPLETED;
 
 #if ENABLE_HFP_CODEC_SELECTION
 	/* Select HFP transport codec. Please note, that this setup
 	 * stage will be performed when the connection becomes idle. */
 	if (t_sco->profile & BA_TRANSPORT_PROFILE_HFP_AG &&
-			r->idle) {
+	    r->idle) {
 		if ((ec = rfcomm_hfp_setup_codec_connection(r)) != ERROR_CODE_OK)
 			return ec;
 		r->setup = HFP_SETUP_COMPLETED;
@@ -1403,7 +1433,7 @@ static error_code_t rfcomm_dispatch_control_events(struct ba_rfcomm * r) {
 	return ERROR_CODE_OK;
 }
 
-static void rfcomm_thread_cleanup(struct ba_rfcomm *r) {
+static void rfcomm_thread_cleanup(struct ba_rfcomm * r) {
 
 	if (r->fd == -1)
 		return;
@@ -1417,7 +1447,7 @@ static void rfcomm_thread_cleanup(struct ba_rfcomm *r) {
 	if (r->sco != NULL) {
 
 		/* battery status will no longer be available */
-		struct ba_device *d = r->sco->d;
+		struct ba_device * d = r->sco->d;
 		d->battery.charge = -1;
 		d->battery.health = -1;
 		bluealsa_dbus_rfcomm_update(r, BA_DBUS_RFCOMM_UPDATE_BATTERY);
@@ -1439,7 +1469,7 @@ static void rfcomm_thread_cleanup(struct ba_rfcomm *r) {
 
 }
 
-static void *rfcomm_thread(struct ba_rfcomm *r) {
+static void * rfcomm_thread(struct ba_rfcomm * r) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(rfcomm_thread_cleanup), r);
@@ -1468,7 +1498,7 @@ static void *rfcomm_thread(struct ba_rfcomm *r) {
 		 * AT command once more. */
 		int timeout = BA_RFCOMM_TIMEOUT_IDLE;
 
-		ba_rfcomm_callback *callback;
+		ba_rfcomm_callback * callback;
 		char tmp[256] = "";
 		error_code_t ec;
 
@@ -1530,7 +1560,7 @@ read:
 			/* use predefined callback, otherwise get generic one */
 			bool predefined_callback = false;
 			if (r->handler != NULL && r->handler->type == reader.at.type &&
-					strcmp(r->handler->command, reader.at.command) == 0) {
+			    strcmp(r->handler->command, reader.at.command) == 0) {
 				callback = r->handler->callback;
 				predefined_callback = true;
 				r->handler = NULL;
@@ -1539,8 +1569,7 @@ read:
 				callback = rfcomm_get_callback(&reader.at);
 
 			if (pfds[2].fd != -1 && !predefined_callback) {
-				at_build(tmp, sizeof(tmp), reader.at.type,
-						reader.at.command, reader.at.value);
+				at_build(tmp, sizeof(tmp), reader.at.type, reader.at.command, reader.at.value);
 				if (write(pfds[2].fd, tmp, strlen(tmp)) == -1)
 					warn("Couldn't forward AT: %s", strerror(errno));
 			}
@@ -1551,7 +1580,7 @@ read:
 			}
 			else if (pfds[2].fd == -1) {
 				warn("Unsupported AT message: %s: command:%s, value:%s",
-						at_type2str(reader.at.type), reader.at.command, reader.at.value);
+				     at_type2str(reader.at.type), reader.at.command, reader.at.value);
 				if (reader.at.type != AT_TYPE_RESP)
 					if ((ec = rfcomm_write_at(pfds[1].fd, AT_TYPE_RESP, NULL, "ERROR")) != ERROR_CODE_OK)
 						goto ioerror;
@@ -1568,7 +1597,7 @@ read:
 
 			ssize_t ret;
 			while ((ret = read(pfds[2].fd, tmp, sizeof(tmp) - 1)) == -1 &&
-					errno == EINTR)
+			       errno == EINTR)
 				continue;
 
 			if (ret <= 0) {
@@ -1615,9 +1644,9 @@ fail:
 	return NULL;
 }
 
-struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
+struct ba_rfcomm * ba_rfcomm_new(struct ba_transport * sco, int fd) {
 
-	struct ba_rfcomm *r;
+	struct ba_rfcomm * r;
 	int err;
 
 	if ((r = calloc(1, sizeof(*r))) == NULL)
@@ -1664,7 +1693,7 @@ struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
 
 	if (sco->profile & BA_TRANSPORT_PROFILE_HFP_HF) {
 
-		char *ptr = r->hf_bac_bcs_string;
+		char * ptr = r->hf_bac_bcs_string;
 
 		if (config.hfp.codecs.cvsd) {
 			ptr += sprintf(ptr, "%u", HFP_CODEC_CVSD);
@@ -1692,10 +1721,10 @@ struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
 	memset(&r->hfp_ind_state, 1, sizeof(r->hfp_ind_state));
 
 	/* Initialize data used for volume gain synchronization. */
-	r->gain_mic = ba_transport_pcm_volume_level_to_range(
-			sco->sco.pcm_mic.volume[0].level, HFP_VOLUME_GAIN_MAX);
-	r->gain_spk = ba_transport_pcm_volume_level_to_range(
-			sco->sco.pcm_spk.volume[0].level, HFP_VOLUME_GAIN_MAX);
+	r->gain_mic = ba_transport_pcm_volume_level_to_range(sco->sco.pcm_mic.volume[0].level,
+	                                                     HFP_VOLUME_GAIN_MAX);
+	r->gain_spk = ba_transport_pcm_volume_level_to_range(sco->sco.pcm_spk.volume[0].level,
+	                                                     HFP_VOLUME_GAIN_MAX);
 
 	if (pipe(r->sig_fd) == -1)
 		goto fail;
@@ -1726,7 +1755,7 @@ fail:
 	return NULL;
 }
 
-void ba_rfcomm_destroy(struct ba_rfcomm *r) {
+void ba_rfcomm_destroy(struct ba_rfcomm * r) {
 
 	int err;
 
@@ -1771,6 +1800,6 @@ void ba_rfcomm_destroy(struct ba_rfcomm *r) {
 	free(r);
 }
 
-int ba_rfcomm_send_signal(struct ba_rfcomm *r, enum ba_rfcomm_signal sig) {
+int ba_rfcomm_send_signal(struct ba_rfcomm * r, enum ba_rfcomm_signal sig) {
 	return write(r->sig_fd[1], &sig, sizeof(sig));
 }

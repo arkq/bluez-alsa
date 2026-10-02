@@ -12,10 +12,10 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <string.h>
-#include <strings.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <strings.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -25,10 +25,10 @@
 #include "shared/defs.h"
 #include "shared/hex.h"
 
-static uint32_t get_codec(const char *s) {
+static uint32_t get_codec(const char * s) {
 
 	char buffer[32] = { 0 };
-	char *tmp;
+	char * tmp;
 
 	strncpy(buffer, s, sizeof(buffer) - 1);
 	if ((tmp = strchr(buffer, ':')) != NULL)
@@ -40,9 +40,9 @@ static uint32_t get_codec(const char *s) {
 	return a2dp_codec_from_string(buffer);
 }
 
-static ssize_t get_codec_blob(const char *s, void *dest, size_t n) {
+static ssize_t get_codec_blob(const char * s, void * dest, size_t n) {
 
-	const char *tmp;
+	const char * tmp;
 	if ((tmp = strchr(s, ':')) != NULL)
 		s = tmp + 1;
 
@@ -63,8 +63,8 @@ static ssize_t get_codec_blob(const char *s, void *dest, size_t n) {
 	return hex2bin(s, dest, len);
 }
 
-static char *bintohex(const void *src, size_t n) {
-	char *hex = calloc(1, n * 2 + 1);
+static char * bintohex(const void * src, size_t n) {
+	char * hex = calloc(1, n * 2 + 1);
 	bin2hex(src, hex, n);
 	return hex;
 }
@@ -76,7 +76,7 @@ static int check_blob_size(size_t size, size_t value) {
 	return -1;
 }
 
-static void print_bits(const void *bstream, size_t offset, size_t n, size_t size) {
+static void print_bits(const void * bstream, size_t offset, size_t n, size_t size) {
 
 	char mask[] = ".... .... .... .... .... .... .... ....";
 	size_t mask_spaces = size == 0 ? 0 : (size - 1) / 4;
@@ -95,21 +95,21 @@ static void print_bits(const void *bstream, size_t offset, size_t n, size_t size
 
 struct bitfield {
 	uint32_t value;
-	const char *label;
+	const char * label;
 };
 
 static bool verbose = false;
 
-static void print_bitfield(const char *name, const void *bstream,
+static void print_bitfield(const char * name, const void * bstream,
 		size_t offset, size_t n, size_t size, uint32_t value,
-		const struct bitfield *fields) {
+		const struct bitfield * fields) {
 	if (!verbose) {
 		printf("  %s (", name);
 		int elems = 0;
 		if (fields == NULL)
 			printf(" %s", value ? "true" : "false");
 		else
-			for (const struct bitfield *f = fields; f->label != NULL; f++)
+			for (const struct bitfield * f = fields; f->label != NULL; f++)
 				if (f->value == 0 || value & f->value)
 					printf("%s%s", elems++ == 0 ? " " : " | ", f->label);
 		printf(" )\n");
@@ -120,7 +120,7 @@ static void print_bitfield(const char *name, const void *bstream,
 			print_bits(bstream, offset + i, 1, size);
 			printf(" = %s", name);
 			if (fields != NULL)
-				for (const struct bitfield *f = fields; f->label != NULL; f++)
+				for (const struct bitfield * f = fields; f->label != NULL; f++)
 					if (bit & f->value)
 						printf(" %s", f->label);
 			printf(": %s\n", bit & value ? "true" : "false");
@@ -128,8 +128,8 @@ static void print_bitfield(const char *name, const void *bstream,
 	}
 }
 
-static void print_value(const char *name, const void *bstream,
-		size_t offset, size_t n, size_t size, const char *format, ...) {
+static void print_value(const char * name, const void * bstream,
+		size_t offset, size_t n, size_t size, const char * format, ...) {
 
 	va_list ap;
 	va_start(ap, format);
@@ -177,9 +177,9 @@ static void print_value(const char *name, const void *bstream,
 #define print_value32(name, bstream, offset, n, format, ...) \
 	print_value(name, bstream, offset, n, 32, format, __VA_ARGS__)
 
-static void dump_sbc(const void *blob, size_t size) {
+static void dump_sbc(const void * blob, size_t size) {
 
-	const a2dp_sbc_t *sbc = blob;
+	const a2dp_sbc_t * sbc = blob;
 	if (check_blob_size(sizeof(*sbc), size) == -1)
 		return;
 
@@ -219,7 +219,7 @@ static void dump_sbc(const void *blob, size_t size) {
 		{ 0 },
 	};
 
-	const uint8_t *bstream = blob;
+	const uint8_t * bstream = blob;
 	printf("SBC <hex:%s> {\n", bintohex(sbc, sizeof(*sbc)));
 	print_bitfield8("Sample Rate", bstream, 0, 4, sbc->sampling_freq, rates);
 	print_bitfield8("Channel Mode", bstream, 4, 4, sbc->channel_mode, ch_modes);
@@ -232,9 +232,9 @@ static void dump_sbc(const void *blob, size_t size) {
 
 }
 
-static void dump_mpeg(const void *blob, size_t size) {
+static void dump_mpeg(const void * blob, size_t size) {
 
-	const a2dp_mpeg_t *mpeg = blob;
+	const a2dp_mpeg_t * mpeg = blob;
 	if (check_blob_size(sizeof(*mpeg), size) == -1)
 		return;
 
@@ -299,7 +299,7 @@ static void dump_mpeg(const void *blob, size_t size) {
 		{ 0 },
 	};
 
-	const uint8_t *bstream = blob;
+	const uint8_t * bstream = blob;
 	printf("MPEG-1,2 Audio <hex:%s> {\n", bintohex(mpeg, sizeof(*mpeg)));
 	print_bitfield8("Layer", bstream, 0, 3, mpeg->layer, layers);
 	print_bool8("CRC", bstream, 3, 1, mpeg->crc);
@@ -320,9 +320,9 @@ static void dump_mpeg(const void *blob, size_t size) {
 
 }
 
-static void dump_aac(const void *blob, size_t size) {
+static void dump_aac(const void * blob, size_t size) {
 
-	const a2dp_aac_t *aac = blob;
+	const a2dp_aac_t * aac = blob;
 	if (check_blob_size(sizeof(*aac), size) == -1)
 		return;
 
@@ -373,7 +373,7 @@ static void dump_aac(const void *blob, size_t size) {
 		{ 0 },
 	};
 
-	const uint8_t *bstream = blob;
+	const uint8_t * bstream = blob;
 	printf("MPEG-2,4 AAC <hex:%s> {\n", bintohex(aac, sizeof(*aac)));
 	print_bitfield8("Object Type", bstream, 0, 7, aac->object_type, objects);
 	print_bool8("Dynamic Range Control", bstream, 7, 1, aac->drc);
@@ -393,9 +393,9 @@ static void dump_aac(const void *blob, size_t size) {
 
 }
 
-static void dump_usac(const void *blob, size_t size) {
+static void dump_usac(const void * blob, size_t size) {
 
-	const a2dp_usac_t *usac = blob;
+	const a2dp_usac_t * usac = blob;
 	if (check_blob_size(sizeof(*usac), size) == -1)
 		return;
 
@@ -443,7 +443,7 @@ static void dump_usac(const void *blob, size_t size) {
 		{ 0 },
 	};
 
-	const uint8_t *bstream = blob;
+	const uint8_t * bstream = blob;
 	printf("MPEG-D USAC <hex:%s> {\n", bintohex(usac, sizeof(*usac)));
 	print_bitfield32("Object Type", bstream, 0, 2, usac->object_type, objects);
 	const uint32_t usac_sampling_freq = A2DP_USAC_GET_SAMPLING_FREQ(*usac);
@@ -455,9 +455,9 @@ static void dump_usac(const void *blob, size_t size) {
 
 }
 
-static void dump_atrac(const void *blob, size_t size) {
+static void dump_atrac(const void * blob, size_t size) {
 
-	const a2dp_atrac_t *atrac = blob;
+	const a2dp_atrac_t * atrac = blob;
 	if (check_blob_size(sizeof(*atrac), size) == -1)
 		return;
 
@@ -497,7 +497,7 @@ static void dump_atrac(const void *blob, size_t size) {
 		{ 0 },
 	};
 
-	const uint8_t *bstream = blob;
+	const uint8_t * bstream = blob;
 	printf("ATRAC <hex:%s> {\n", bintohex(atrac, sizeof(*atrac)));
 	print_value8("Version", bstream, 0, 3, "%u", atrac->version);
 	print_bitfield8("Channel Mode", bstream, 3, 3, atrac->channel_mode, ch_modes);
@@ -514,24 +514,24 @@ static void dump_atrac(const void *blob, size_t size) {
 
 }
 
-static void print_vendor(const a2dp_vendor_info_t *info) {
+static void print_vendor(const a2dp_vendor_info_t * info) {
 	const uint32_t vendor_id = A2DP_VENDOR_INFO_GET_VENDOR_ID(*info);
-	const char *vendor_name = bt_compidtostr(vendor_id);
+	const char * vendor_name = bt_compidtostr(vendor_id);
 	print_value32("Vendor ID", &info->vendor_id, 0, 32, "%#010x [%s]", vendor_id, vendor_name);
 	const uint16_t codec_id = A2DP_VENDOR_INFO_GET_CODEC_ID(*info);
 	print_value16("Vendor Codec ID", &info->codec_id, 0, 16, "%#06x", codec_id);
 }
 
-static void dump_vendor(const void *blob, size_t size) {
+static void dump_vendor(const void * blob, size_t size) {
 
-	const a2dp_vendor_info_t *info = blob;
+	const a2dp_vendor_info_t * info = blob;
 	if (size <= sizeof(*info))
 		return;
 
 	printf("<hex:%s> {\n", bintohex(blob, size));
 	print_vendor(info);
 
-	const uint8_t *bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
+	const uint8_t * bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
 	printf("  Data ( hex:%s )\n", bintohex(bstream, size - sizeof(*info)));
 	printf("}\n");
 
@@ -552,40 +552,40 @@ static const struct bitfield aptx_rates[] = {
 	{ 0 },
 };
 
-static void dump_aptx(const void *blob, size_t size) {
+static void dump_aptx(const void * blob, size_t size) {
 
-	const a2dp_aptx_t *aptx = blob;
+	const a2dp_aptx_t * aptx = blob;
 	if (check_blob_size(sizeof(*aptx), size) == -1)
 		return;
 
 	printf("aptX <hex:%s> {\n", bintohex(blob, size));
 	print_vendor(&aptx->info);
 
-	const uint8_t *bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
+	const uint8_t * bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
 	print_bitfield8("Sample Rate", bstream, 0, 4, aptx->sampling_freq, aptx_rates);
 	print_bitfield8("Channel Mode", bstream, 4, 4, aptx->channel_mode, aptx_ch_modes);
 	printf("}\n");
 
 }
 
-static void dump_aptx_tws(const void *blob, size_t size) {
+static void dump_aptx_tws(const void * blob, size_t size) {
 
-	const a2dp_aptx_t *aptx = blob;
+	const a2dp_aptx_t * aptx = blob;
 	if (check_blob_size(sizeof(*aptx), size) == -1)
 		return;
 	printf("aptX-TWS <hex:%s> {\n", bintohex(blob, size));
 	print_vendor(&aptx->info);
 
-	const uint8_t *bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
+	const uint8_t * bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
 	print_bitfield8("Sample Rate", bstream, 0, 4, aptx->sampling_freq, aptx_rates);
 	print_bitfield8("Channel Mode", bstream, 4, 4, aptx->channel_mode, aptx_ch_modes);
 	printf("}\n");
 
 }
 
-static void dump_aptx_ad(const void *blob, size_t size) {
+static void dump_aptx_ad(const void * blob, size_t size) {
 
-	const a2dp_aptx_ad_t *aptx = blob;
+	const a2dp_aptx_ad_t * aptx = blob;
 	if (check_blob_size(sizeof(*aptx), size) == -1)
 		return;
 
@@ -609,7 +609,7 @@ static void dump_aptx_ad(const void *blob, size_t size) {
 	printf("aptX Adaptive <hex:%s> {\n", bintohex(blob, size));
 	print_vendor(&aptx->info);
 
-	const uint8_t *bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
+	const uint8_t * bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
 	print_bitfield8("Sample Rate", bstream, 0, 5, aptx->sampling_freq, rates);
 	print_value8("RFA", bstream, 5, 3, "%#x", aptx->rfa1);
 	print_value8("RFA", bstream += 1, 0, 3, "%#x", aptx->rfa2);
@@ -620,21 +620,22 @@ static void dump_aptx_ad(const void *blob, size_t size) {
 	print_value8("TTP-HQ High", bstream += 1, 0, 8, "%u", aptx->ttp_hq_high);
 	print_value8("TTP-TWS Low", bstream += 1, 0, 8, "%u", aptx->ttp_tws_low);
 	print_value8("TTP-TWS High", bstream += 1, 0, 8, "%u", aptx->ttp_tws_high);
-	print_value24("EOC", bstream += 1, 0, 24, "hex:%02x%02x%02x", aptx->eoc[0], aptx->eoc[1], aptx->eoc[2]);
+	print_value24("EOC", bstream += 1, 0, 24, "hex:%02x%02x%02x",
+	              aptx->eoc[0], aptx->eoc[1], aptx->eoc[2]);
 	printf("}\n");
 
 }
 
-static void dump_aptx_hd(const void *blob, size_t size) {
+static void dump_aptx_hd(const void * blob, size_t size) {
 
-	const a2dp_aptx_hd_t *aptx = blob;
+	const a2dp_aptx_hd_t * aptx = blob;
 	if (check_blob_size(sizeof(*aptx), size) == -1)
 		return;
 
 	printf("aptX HD <hex:%s> {\n", bintohex(blob, size));
 	print_vendor(&aptx->aptx.info);
 
-	const uint8_t *bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
+	const uint8_t * bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
 	print_bitfield8("Sample Rate", bstream, 0, 4, aptx->aptx.sampling_freq, aptx_rates);
 	print_bitfield8("Channel Mode", bstream, 4, 4, aptx->aptx.channel_mode, aptx_ch_modes);
 	print_value32("RFA", bstream += 1, 0, 32, "%#010x", aptx->rfa);
@@ -642,10 +643,10 @@ static void dump_aptx_hd(const void *blob, size_t size) {
 
 }
 
-static void dump_aptx_ll(const void *blob, size_t size) {
+static void dump_aptx_ll(const void * blob, size_t size) {
 
-	const a2dp_aptx_ll_t *aptx = blob;
-	const a2dp_aptx_ll_new_t *aptx_new_caps = blob;
+	const a2dp_aptx_ll_t * aptx = blob;
+	const a2dp_aptx_ll_new_t * aptx_new_caps = blob;
 
 	size_t conf_size = sizeof(*aptx);
 	if (size >= sizeof(*aptx) && aptx->has_new_caps)
@@ -656,7 +657,7 @@ static void dump_aptx_ll(const void *blob, size_t size) {
 	printf("aptX LL (Sprint) <hex:%s> {\n", bintohex(blob, size));
 	print_vendor(&aptx->aptx.info);
 
-	const uint8_t *bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
+	const uint8_t * bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
 	print_bitfield8("Sample Rate", bstream, 0, 4, aptx->aptx.sampling_freq, aptx_rates);
 	print_bitfield8("Channel Mode", bstream, 4, 4, aptx->aptx.channel_mode, aptx_ch_modes);
 	print_value8("RFA", bstream += 1, 0, 6, "%#x", aptx->reserved);
@@ -679,9 +680,9 @@ static void dump_aptx_ll(const void *blob, size_t size) {
 
 }
 
-static void dump_faststream(const void *blob, size_t size) {
+static void dump_faststream(const void * blob, size_t size) {
 
-	const a2dp_faststream_t *fs = blob;
+	const a2dp_faststream_t * fs = blob;
 	if (check_blob_size(sizeof(*fs), size) == -1)
 		return;
 
@@ -705,7 +706,7 @@ static void dump_faststream(const void *blob, size_t size) {
 	printf("FastStream <hex:%s> {\n", bintohex(blob, size));
 	print_vendor(&fs->info);
 
-	const uint8_t *bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
+	const uint8_t * bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
 	print_value8("RFA", bstream, 0, 6, "%#x", fs->direction >> 2);
 	print_bitfield8("Direction", bstream, 6, 2, fs->direction, directions);
 	print_bitfield8("Sample Rate Voice", bstream += 1, 0, 4, fs->sampling_freq_voice, rates_voice);
@@ -714,9 +715,9 @@ static void dump_faststream(const void *blob, size_t size) {
 
 }
 
-static void dump_lc3plus(const void *blob, size_t size) {
+static void dump_lc3plus(const void * blob, size_t size) {
 
-	const a2dp_lc3plus_t *lc3plus = blob;
+	const a2dp_lc3plus_t * lc3plus = blob;
 	if (check_blob_size(sizeof(*lc3plus), size) == -1)
 		return;
 
@@ -742,7 +743,7 @@ static void dump_lc3plus(const void *blob, size_t size) {
 	printf("LC3plus <hex:%s> {\n", bintohex(blob, size));
 	print_vendor(&lc3plus->info);
 
-	const uint8_t *bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
+	const uint8_t * bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
 	print_bitfield8("Frame Duration", bstream, 0, 4, lc3plus->frame_duration, durations);
 	print_value8("RFA", bstream, 4, 4, "%#x", lc3plus->rfa);
 	print_bitfield8("Channel Mode", bstream += 1, 0, 8, lc3plus->channel_mode, ch_modes);
@@ -752,9 +753,9 @@ static void dump_lc3plus(const void *blob, size_t size) {
 
 }
 
-static void dump_ldac(const void *blob, size_t size) {
+static void dump_ldac(const void * blob, size_t size) {
 
-	const a2dp_ldac_t *ldac = blob;
+	const a2dp_ldac_t * ldac = blob;
 	if (check_blob_size(sizeof(*ldac), size) == -1)
 		return;
 
@@ -778,7 +779,7 @@ static void dump_ldac(const void *blob, size_t size) {
 	printf("LDAC <hex:%s> {\n", bintohex(blob, size));
 	print_vendor(&ldac->info);
 
-	const uint8_t *bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
+	const uint8_t * bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
 	print_value8("RFA", bstream, 0, 2, "%#x", ldac->rfa1);
 	print_bitfield8("Sample Rate", bstream, 2, 6, ldac->sampling_freq, rates);
 	print_value8("RFA", bstream += 1, 0, 5, "%#x", ldac->rfa2);
@@ -826,16 +827,16 @@ static int lhdc_get_max_bitrate(unsigned int value) {
 	}
 }
 
-static void dump_lhdc_v1(const void *blob, size_t size) {
+static void dump_lhdc_v1(const void * blob, size_t size) {
 
-	const a2dp_lhdc_v1_t *lhdc = blob;
+	const a2dp_lhdc_v1_t * lhdc = blob;
 	if (check_blob_size(sizeof(*lhdc), size) == -1)
 		return;
 
 	printf("LHDC v1 <hex:%s> {\n", bintohex(blob, size));
 	print_vendor(&lhdc->info);
 
-	const uint8_t *bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
+	const uint8_t * bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
 	print_value8("RFA", bstream, 0, 1, "%#x", lhdc->rfa);
 	print_bool8("Channel Separation", bstream, 1, 1, lhdc->ch_separation);
 	print_bitfield8("Bit Depth", bstream, 2, 2, lhdc->bit_depth, lhdc_bit_depths);
@@ -844,16 +845,16 @@ static void dump_lhdc_v1(const void *blob, size_t size) {
 
 }
 
-static void dump_lhdc_v2(const void *blob, size_t size) {
+static void dump_lhdc_v2(const void * blob, size_t size) {
 
-	const a2dp_lhdc_v2_t *lhdc = blob;
+	const a2dp_lhdc_v2_t * lhdc = blob;
 	if (check_blob_size(sizeof(*lhdc), size) == -1)
 		return;
 
 	printf("LHDC v2 <hex:%s> {\n", bintohex(blob, size));
 	print_vendor(&lhdc->info);
 
-	const uint8_t *bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
+	const uint8_t * bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
 	print_value8("RFA", bstream, 0, 2, "%#x", lhdc->rfa1);
 	print_bitfield8("Bit Depth", bstream, 2, 2, lhdc->bit_depth, lhdc_bit_depths);
 	print_bitfield8("Sample Rate", bstream, 4, 4, lhdc->sampling_freq, lhdc_rates);
@@ -867,16 +868,16 @@ static void dump_lhdc_v2(const void *blob, size_t size) {
 
 }
 
-static void dump_lhdc_v3(const void *blob, size_t size) {
+static void dump_lhdc_v3(const void * blob, size_t size) {
 
-	const a2dp_lhdc_v3_t *lhdc = blob;
+	const a2dp_lhdc_v3_t * lhdc = blob;
 	if (check_blob_size(sizeof(*lhdc), size) == -1)
 		return;
 
 	printf("LHDC v3 <hex:%s> {\n", bintohex(blob, size));
 	print_vendor(&lhdc->info);
 
-	const uint8_t *bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
+	const uint8_t * bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
 	print_bool8("AR", bstream, 0, 1, lhdc->ar);
 	print_bool8("JAS", bstream, 1, 1, lhdc->jas);
 	print_bitfield8("Bit Depth", bstream, 2, 2, lhdc->bit_depth, lhdc_bit_depths);
@@ -895,16 +896,16 @@ static void dump_lhdc_v3(const void *blob, size_t size) {
 
 }
 
-static void dump_lhdc_v5(const void *blob, size_t size) {
+static void dump_lhdc_v5(const void * blob, size_t size) {
 
-	const a2dp_lhdc_v5_t *lhdc = blob;
+	const a2dp_lhdc_v5_t * lhdc = blob;
 	if (check_blob_size(sizeof(*lhdc), size) == -1)
 		return;
 
 	printf("LHDC v5 <hex:%s> {\n", bintohex(blob, size));
 	print_vendor(&lhdc->info);
 
-	const uint8_t *bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
+	const uint8_t * bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
 	print_value8("RFA", bstream, 0, 3, "%#x", lhdc->rfa1);
 	print_bitfield8("Sample Rate", bstream, 3, 5, lhdc->sampling_freq, lhdc_rates);
 	print_value8("Min Bitrate", bstream += 1, 0, 2, "%#x", lhdc->min_bitrate);
@@ -927,9 +928,9 @@ static void dump_lhdc_v5(const void *blob, size_t size) {
 
 }
 
-static void dump_opus(const void *blob, size_t size) {
+static void dump_opus(const void * blob, size_t size) {
 
-	const a2dp_opus_t *opus = blob;
+	const a2dp_opus_t * opus = blob;
 	if (check_blob_size(sizeof(*opus), size) == -1)
 		return;
 
@@ -956,7 +957,7 @@ static void dump_opus(const void *blob, size_t size) {
 	printf("Opus <hex:%s> {\n", bintohex(blob, size));
 	print_vendor(&opus->info);
 
-	const uint8_t *bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
+	const uint8_t * bstream = ((uint8_t *)blob) + sizeof(a2dp_vendor_info_t);
 	print_bitfield8("Sample Rate", bstream, 0, 3, opus->sampling_freq, rates);
 	print_bitfield8("Frame Duration", bstream, 3, 2, opus->frame_duration, durations);
 	print_bitfield8("Channel Mode", bstream, 5, 3, opus->channel_mode, ch_modes);
@@ -964,9 +965,9 @@ static void dump_opus(const void *blob, size_t size) {
 
 }
 
-static void dump_opus_pw(const void *blob, size_t size) {
+static void dump_opus_pw(const void * blob, size_t size) {
 
-	const a2dp_opus_pw_t *opus = blob;
+	const a2dp_opus_pw_t * opus = blob;
 	if (check_blob_size(sizeof(*opus), size) == -1)
 		return;
 
@@ -982,27 +983,29 @@ static void dump_opus_pw(const void *blob, size_t size) {
 	printf("Opus (PipeWire) <hex:%s> {\n", bintohex(blob, size));
 	print_vendor(&opus->info);
 
-	const uint8_t *bstream;
+	const uint8_t * bstream;
 
 	bstream = (uint8_t *)&opus->music;
 	print_value8("Music Channels", bstream, 0, 8, "%u", opus->music.channels);
 	print_value8("Music Coupled Streams", bstream += 1, 0, 8, "%u", opus->music.coupled_streams);
 	const uint32_t opus_music_location = A2DP_OPUS_PW_GET_LOCATION(opus->music);
 	print_value32("Music Location", bstream += 1, 0, 32, "%#x", opus_music_location);
-	print_bitfield8("Music Frame Duration", bstream += 4, 0, 8, opus->music.frame_duration, durations);
+	print_bitfield8("Music Frame Duration", bstream += 4, 0, 8,
+	                opus->music.frame_duration, durations);
 	const uint32_t opus_music_bitrate = A2DP_OPUS_PW_GET_BITRATE(opus->music);
 	print_value16("Music Bitrate", bstream += 1, 0, 16, "%u [%u kbps]",
-			opus_music_bitrate, opus_music_bitrate * 1024);
+	              opus_music_bitrate, opus_music_bitrate * 1024);
 
 	bstream = (uint8_t *)&opus->voice;
 	print_value8("Voice Channels", bstream, 0, 8, "%u", opus->voice.channels);
 	print_value8("Voice Coupled Streams", bstream += 1, 0, 8, "%u", opus->voice.coupled_streams);
 	const uint32_t opus_voice_location = A2DP_OPUS_PW_GET_LOCATION(opus->voice);
 	print_value32("Voice Location", bstream += 1, 0, 32, "%#x", opus_voice_location);
-	print_bitfield8("Voice Frame Duration", bstream += 4, 0, 8, opus->voice.frame_duration, durations);
+	print_bitfield8("Voice Frame Duration", bstream += 4, 0, 8,
+	                opus->voice.frame_duration, durations);
 	const uint32_t opus_voice_bitrate = A2DP_OPUS_PW_GET_BITRATE(opus->voice);
 	print_value16("Voice Bitrate", bstream += 1, 0, 16, "%u [%u kbps]",
-			opus_voice_bitrate, opus_voice_bitrate * 1024);
+	              opus_voice_bitrate, opus_voice_bitrate * 1024);
 
 	printf("}\n");
 
@@ -1056,7 +1059,7 @@ static const struct {
 		-1, dump_vendor },
 };
 
-int dump(const char *config, bool detect) {
+int dump(const char * config, bool detect) {
 
 	uint32_t codec_id = get_codec(config);
 	int rv = -1;
@@ -1065,12 +1068,12 @@ int dump(const char *config, bool detect) {
 	if ((blob_size = get_codec_blob(config, NULL, 0)) == -1)
 		return -1;
 
-	void *blob = malloc(blob_size);
+	void * blob = malloc(blob_size);
 	if (get_codec_blob(config, blob, blob_size) == -1)
 		goto final;
 
 	if (codec_id == A2DP_CODEC_VENDOR &&
-			(size_t)blob_size >= sizeof(a2dp_vendor_info_t))
+	    (size_t)blob_size >= sizeof(a2dp_vendor_info_t))
 		codec_id = a2dp_codec_from_vendor_info(blob);
 
 	rv = 0;
@@ -1096,7 +1099,7 @@ final:
 	return rv;
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char * argv[]) {
 
 	int opt;
 	const char * opts = "hVvx";
@@ -1113,29 +1116,29 @@ int main(int argc, char *argv[]) {
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
-		case 'h' /* --help */ :
+		case 'h' /* --help */:
 usage:
 			printf("Usage:\n"
-					"  %s [OPTION]... <CONFIG>...\n"
-					"\nOptions:\n"
-					"  -h, --help\t\tprint this help and exit\n"
-					"  -V, --version\t\tprint version and exit\n"
-					"  -v, --verbose\t\tshow verbose bit-stream details\n"
-					"  -x, --auto-detect\ttry to auto-detect codec\n"
-					"\nExamples:\n"
-					"  %s sbc:ffff0235\n"
-					"  %s vendor:4f0000000100ff\n",
-					argv[0], argv[0], argv[0]);
+			       "  %s [OPTION]... <CONFIG>...\n"
+			       "\nOptions:\n"
+			       "  -h, --help\t\tprint this help and exit\n"
+			       "  -V, --version\t\tprint version and exit\n"
+			       "  -v, --verbose\t\tshow verbose bit-stream details\n"
+			       "  -x, --auto-detect\ttry to auto-detect codec\n"
+			       "\nExamples:\n"
+			       "  %s sbc:ffff0235\n"
+			       "  %s vendor:4f0000000100ff\n",
+			       argv[0], argv[0], argv[0]);
 			return EXIT_SUCCESS;
 
-		case 'V' /* --version */ :
+		case 'V' /* --version */:
 			printf("%s\n", PACKAGE_VERSION);
 			return EXIT_SUCCESS;
 
-		case 'v' /* --verbose */ :
+		case 'v' /* --verbose */:
 			verbose = true;
 			break;
-		case 'x' /* --auto-detect */ :
+		case 'x' /* --auto-detect */:
 			detect = true;
 			break;
 

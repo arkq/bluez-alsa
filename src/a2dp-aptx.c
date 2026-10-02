@@ -47,51 +47,51 @@ static const struct a2dp_bit_mapping a2dp_aptx_rates[] = {
 };
 
 static void a2dp_aptx_caps_intersect(
-		void *capabilities,
-		const void *mask) {
+		void * capabilities,
+		const void * mask) {
 	a2dp_caps_bitwise_intersect(capabilities, mask, sizeof(a2dp_aptx_t));
 }
 
 static error_code_t a2dp_aptx_caps_foreach_channel_mode(
-		const void *capabilities,
+		const void * capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
-		void *userdata) {
-	const a2dp_aptx_t *caps = capabilities;
+		void * userdata) {
+	const a2dp_aptx_t * caps = capabilities;
 	if (stream == A2DP_MAIN)
 		return a2dp_bit_mapping_foreach(a2dp_aptx_channels, caps->channel_mode, func, userdata);
 	return ERROR_CODE_INVALID_STREAM;
 }
 
 static error_code_t a2dp_aptx_caps_foreach_sample_rate(
-		const void *capabilities,
+		const void * capabilities,
 		enum a2dp_stream stream,
 		a2dp_bit_mapping_foreach_func func,
-		void *userdata) {
-	const a2dp_aptx_t *caps = capabilities;
+		void * userdata) {
+	const a2dp_aptx_t * caps = capabilities;
 	if (stream == A2DP_MAIN)
 		return a2dp_bit_mapping_foreach(a2dp_aptx_rates, caps->sampling_freq, func, userdata);
 	return ERROR_CODE_INVALID_STREAM;
 }
 
 static void a2dp_aptx_caps_select_channel_mode(
-		void *capabilities,
+		void * capabilities,
 		enum a2dp_stream stream,
 		unsigned int channels) {
-	a2dp_aptx_t *caps = capabilities;
+	a2dp_aptx_t * caps = capabilities;
 	if (stream == A2DP_MAIN)
 		caps->channel_mode = a2dp_bit_mapping_lookup_value(a2dp_aptx_channels,
-				caps->channel_mode, channels);
+		                                                   caps->channel_mode, channels);
 }
 
 static void a2dp_aptx_caps_select_sample_rate(
-		void *capabilities,
+		void * capabilities,
 		enum a2dp_stream stream,
 		unsigned int rate) {
-	a2dp_aptx_t *caps = capabilities;
+	a2dp_aptx_t * caps = capabilities;
 	if (stream == A2DP_MAIN)
 		caps->sampling_freq = a2dp_bit_mapping_lookup_value(a2dp_aptx_rates,
-				caps->sampling_freq, rate);
+		                                                    caps->sampling_freq, rate);
 }
 
 static struct a2dp_caps_helpers a2dp_aptx_caps_helpers = {
@@ -103,12 +103,12 @@ static struct a2dp_caps_helpers a2dp_aptx_caps_helpers = {
 	.select_sample_rate = a2dp_aptx_caps_select_sample_rate,
 };
 
-void *a2dp_aptx_enc_thread(struct ba_transport_pcm *t_pcm) {
+void * a2dp_aptx_enc_thread(struct ba_transport_pcm * t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = t_pcm->t;
+	struct ba_transport * t = t_pcm->t;
 	struct io_poll io = { .timeout = -1 };
 
 	HANDLE_APTX handle;
@@ -129,7 +129,7 @@ void *a2dp_aptx_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	const size_t mtu_write_aptx_frames = t->mtu_write / aptx_frame_len;
 	if (ffb_init_int16_t(&pcm, aptx_frame_pcm_samples * mtu_write_aptx_frames) == -1 ||
-			ffb_init_uint8_t(&bt, t->mtu_write) == -1) {
+	    ffb_init_uint8_t(&bt, t->mtu_write) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
@@ -148,7 +148,7 @@ void *a2dp_aptx_enc_thread(struct ba_transport_pcm *t_pcm) {
 			continue;
 		}
 
-		const int16_t *input = pcm.data;
+		const int16_t * input = pcm.data;
 		const size_t samples = ffb_len_out(&pcm);
 		size_t input_samples = samples;
 
@@ -222,12 +222,12 @@ fail_init:
 
 #if HAVE_APTX_DECODE
 __attribute__ ((weak))
-void *a2dp_aptx_dec_thread(struct ba_transport_pcm *t_pcm) {
+void * a2dp_aptx_dec_thread(struct ba_transport_pcm * t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = t_pcm->t;
+	struct ba_transport * t = t_pcm->t;
 	struct io_poll io = { .timeout = -1 };
 
 	HANDLE_APTX handle;
@@ -245,7 +245,7 @@ void *a2dp_aptx_dec_thread(struct ba_transport_pcm *t_pcm) {
 	/* Note, that we are allocating space for one extra output packed, which is
 	 * required by the aptx_decode_sync() function of libopenaptx library. */
 	if (ffb_init_int16_t(&pcm, (t->mtu_read / 4 + 1) * 8) == -1 ||
-			ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
+	    ffb_init_uint8_t(&bt, t->mtu_read) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
@@ -264,7 +264,7 @@ void *a2dp_aptx_dec_thread(struct ba_transport_pcm *t_pcm) {
 		if (!ba_transport_pcm_is_active(t_pcm))
 			continue;
 
-		uint8_t *input = bt.data;
+		uint8_t * input = bt.data;
 		size_t input_len = len;
 
 		ffb_rewind(&pcm);
@@ -302,10 +302,10 @@ fail_init:
 #endif
 
 static error_code_t a2dp_aptx_configuration_select(
-		const struct a2dp_sep *sep,
-		void *capabilities) {
+		const struct a2dp_sep * sep,
+		void * capabilities) {
 
-	a2dp_aptx_t *caps = capabilities;
+	a2dp_aptx_t * caps = capabilities;
 	const a2dp_aptx_t saved = *caps;
 
 	/* Narrow capabilities to values supported by BlueALSA. */
@@ -313,7 +313,8 @@ static error_code_t a2dp_aptx_configuration_select(
 
 	unsigned int sampling_freq = 0;
 	if (a2dp_aptx_caps_foreach_sample_rate(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_sample_rate, &sampling_freq) == ERROR_CODE_OK)
+	                                       a2dp_bit_mapping_foreach_get_best_sample_rate,
+	                                       &sampling_freq) == ERROR_CODE_OK)
 		caps->sampling_freq = sampling_freq;
 	else {
 		error("apt-X: No supported sample rates: %#x", saved.sampling_freq);
@@ -322,7 +323,8 @@ static error_code_t a2dp_aptx_configuration_select(
 
 	unsigned int channel_mode = 0;
 	if (a2dp_aptx_caps_foreach_channel_mode(caps, A2DP_MAIN,
-				a2dp_bit_mapping_foreach_get_best_channel_mode, &channel_mode) == ERROR_CODE_OK)
+	                                        a2dp_bit_mapping_foreach_get_best_channel_mode,
+	                                        &channel_mode) == ERROR_CODE_OK)
 		caps->channel_mode = channel_mode;
 	else {
 		error("apt-X: No supported channel modes: %#x", saved.channel_mode);
@@ -333,10 +335,10 @@ static error_code_t a2dp_aptx_configuration_select(
 }
 
 static error_code_t a2dp_aptx_configuration_check(
-		const struct a2dp_sep *sep,
-		const void *configuration) {
+		const struct a2dp_sep * sep,
+		const void * configuration) {
 
-	const a2dp_aptx_t *conf = configuration;
+	const a2dp_aptx_t * conf = configuration;
 	a2dp_aptx_t conf_v = *conf;
 
 	/* Validate configuration against BlueALSA capabilities. */
@@ -359,12 +361,12 @@ static error_code_t a2dp_aptx_transport_init(struct ba_transport * t) {
 
 	ssize_t channels_i;
 	if ((channels_i = a2dp_bit_mapping_lookup(a2dp_aptx_channels,
-					t->media.a2dp.configuration.aptx.channel_mode)) == -1)
+	                                          t->media.a2dp.configuration.aptx.channel_mode)) == -1)
 		return ERROR_CODE_A2DP_UNSUPPORTED_CHANNEL_MODE;
 
 	ssize_t rate_i;
 	if ((rate_i = a2dp_bit_mapping_lookup(a2dp_aptx_rates,
-					t->media.a2dp.configuration.aptx.sampling_freq)) == -1)
+	                                      t->media.a2dp.configuration.aptx.sampling_freq)) == -1)
 		return ERROR_CODE_A2DP_UNSUPPORTED_SAMPLE_RATE;
 
 	t->media.pcm.format = BA_TRANSPORT_PCM_FORMAT_S16_2LE;
@@ -372,12 +374,12 @@ static error_code_t a2dp_aptx_transport_init(struct ba_transport * t) {
 	t->media.pcm.rate = a2dp_aptx_rates[rate_i].value;
 
 	memcpy(t->media.pcm.channel_map, a2dp_aptx_channels[channels_i].ch.map,
-			t->media.pcm.channels * sizeof(*t->media.pcm.channel_map));
+	       t->media.pcm.channels * sizeof(*t->media.pcm.channel_map));
 
 	return ERROR_CODE_OK;
 }
 
-static error_code_t a2dp_aptx_source_init(struct a2dp_sep *sep) {
+static error_code_t a2dp_aptx_source_init(struct a2dp_sep * sep) {
 	if (config.a2dp.force_mono)
 		warn("apt-X: Mono channel mode not supported");
 	if (config.a2dp.force_44100)
@@ -385,7 +387,7 @@ static error_code_t a2dp_aptx_source_init(struct a2dp_sep *sep) {
 	return ERROR_CODE_OK;
 }
 
-static int a2dp_aptx_source_transport_start(struct ba_transport *t) {
+static int a2dp_aptx_source_transport_start(struct ba_transport * t) {
 	return ba_transport_pcm_start(&t->media.pcm, a2dp_aptx_enc_thread, "ba-a2dp-aptx");
 }
 
@@ -418,7 +420,7 @@ struct a2dp_sep a2dp_aptx_source = {
 
 #if HAVE_APTX_DECODE
 
-static int a2dp_aptx_sink_transport_start(struct ba_transport *t) {
+static int a2dp_aptx_sink_transport_start(struct ba_transport * t) {
 	return ba_transport_pcm_start(&t->media.pcm, a2dp_aptx_dec_thread, "ba-a2dp-aptx");
 }
 

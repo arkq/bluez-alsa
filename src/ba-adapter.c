@@ -21,10 +21,10 @@
 #include "ba-config.h"
 #include "ba-device.h"
 #include "hci.h"
-#include "utils.h"
 #include "shared/bluetooth-hfp.h"
 #include "shared/log.h"
 #include "shared/rc.h"
+#include "utils.h"
 
 static void adapter_detach(void * ptr) {
 	struct ba_adapter * a = ptr;

@@ -39,41 +39,41 @@ struct io_poll {
 };
 
 ssize_t io_bt_read(
-		struct ba_transport_pcm *pcm,
-		void *buffer,
+		struct ba_transport_pcm * pcm,
+		void * buffer,
 		size_t count);
 
 ssize_t io_bt_write(
-		struct ba_transport_pcm *pcm,
-		const void *buffer,
+		struct ba_transport_pcm * pcm,
+		const void * buffer,
 		size_t count);
 
 void io_pcm_scale(
-		struct ba_transport_pcm *pcm,
-		void *buffer,
+		struct ba_transport_pcm * pcm,
+		void * buffer,
 		size_t samples);
 
 ssize_t io_pcm_flush(
-		struct ba_transport_pcm *pcm);
+		struct ba_transport_pcm * pcm);
 
 ssize_t io_pcm_read(
-		struct ba_transport_pcm *pcm,
-		void *buffer,
+		struct ba_transport_pcm * pcm,
+		void * buffer,
 		size_t samples);
 
 ssize_t io_pcm_write(
-		struct ba_transport_pcm *pcm,
-		const void *buffer,
+		struct ba_transport_pcm * pcm,
+		const void * buffer,
 		size_t samples);
 
 ssize_t io_poll_and_read_bt(
-		struct io_poll *io,
-		struct ba_transport_pcm *pcm,
-		ffb_t *buffer);
+		struct io_poll * io,
+		struct ba_transport_pcm * pcm,
+		ffb_t * buffer);
 
 ssize_t io_poll_and_read_pcm(
-		struct io_poll *io,
-		struct ba_transport_pcm *pcm,
-		ffb_t *buffer);
+		struct io_poll * io,
+		struct ba_transport_pcm * pcm,
+		ffb_t * buffer);
 
 #endif

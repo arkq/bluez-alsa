@@ -23,19 +23,20 @@ CK_START_TEST(test_audio_interleave_deinterleave_s16_2le) {
 	int16_t dest_ch1[ARRAYSIZE(ch1)];
 	int16_t dest_ch2[ARRAYSIZE(ch2)];
 
-	const int16_t *src[] = { ch1, ch2 };
+	const int16_t * src[] = { ch1, ch2 };
 	audio_interleave_s16_2le(interleaved, src, ARRAYSIZE(src), ARRAYSIZE(ch1));
 	for (size_t i = 0; i < ARRAYSIZE(ch1); i++) {
 		ck_assert_int_eq(interleaved[i * 2 + 0], ch1[i]);
 		ck_assert_int_eq(interleaved[i * 2 + 1], ch2[i]);
 	}
 
-	int16_t *dest[] = { dest_ch1, dest_ch2 };
+	int16_t * dest[] = { dest_ch1, dest_ch2 };
 	audio_deinterleave_s16_2le(dest, interleaved, ARRAYSIZE(dest), ARRAYSIZE(ch1));
 	ck_assert_mem_eq(dest_ch1, ch1, sizeof(ch1));
 	ck_assert_mem_eq(dest_ch2, ch2, sizeof(ch2));
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_audio_interleave_deinterleave_s32_4le) {
 
@@ -48,7 +49,7 @@ CK_START_TEST(test_audio_interleave_deinterleave_s32_4le) {
 	int32_t dest_ch2[ARRAYSIZE(ch2)];
 	int32_t dest_ch3[ARRAYSIZE(ch3)];
 
-	const int32_t *src[] = { ch1, ch2, ch3 };
+	const int32_t * src[] = { ch1, ch2, ch3 };
 	audio_interleave_s32_4le(interleaved, src, ARRAYSIZE(src), ARRAYSIZE(ch1));
 	for (size_t i = 0; i < ARRAYSIZE(ch1); i++) {
 		ck_assert_int_eq(interleaved[i * 3 + 0], ch1[i]);
@@ -56,13 +57,14 @@ CK_START_TEST(test_audio_interleave_deinterleave_s32_4le) {
 		ck_assert_int_eq(interleaved[i * 3 + 2], ch3[i]);
 	}
 
-	int32_t *dest[] = { dest_ch1, dest_ch2, dest_ch3 };
+	int32_t * dest[] = { dest_ch1, dest_ch2, dest_ch3 };
 	audio_deinterleave_s32_4le(dest, interleaved, ARRAYSIZE(dest), ARRAYSIZE(ch1));
 	ck_assert_mem_eq(dest_ch1, ch1, sizeof(ch1));
 	ck_assert_mem_eq(dest_ch2, ch2, sizeof(ch2));
 	ck_assert_mem_eq(dest_ch3, ch3, sizeof(ch3));
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_audio_scale_s16_2le) {
 
@@ -110,7 +112,8 @@ CK_START_TEST(test_audio_scale_s16_2le) {
 	audio_scale_s16_2le(tmp, scale_half_r, 2, ARRAYSIZE(tmp) / 2);
 	ck_assert_mem_eq(tmp, half_r, sizeof(half_r));
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_audio_scale_s32_4le) {
 
@@ -141,7 +144,8 @@ CK_START_TEST(test_audio_scale_s32_4le) {
 	audio_scale_s32_4le(tmp, scale_half_r, 2, ARRAYSIZE(tmp) / 2);
 	ck_assert_mem_eq(tmp, half_r, sizeof(half_r));
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 int main(void) {
 

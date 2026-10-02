@@ -12,8 +12,8 @@
 #include <stddef.h>
 
 #include <gio/gio.h>
-#include <glib-object.h>
 #include <glib.h>
+#include <glib-object.h>
 
 #define DBUS_SERVICE "org.freedesktop.DBus"
 
@@ -30,56 +30,56 @@
 /**
  * Definition of a D-Bus method call dispatcher. */
 typedef struct _GDBusMethodCallDispatcher {
-	const char *sender;
-	const char *path;
-	const char *interface;
-	const char *method;
+	const char * sender;
+	const char * path;
+	const char * interface;
+	const char * method;
 	void (*handler)(GDBusMethodInvocation *, void *);
 } GDBusMethodCallDispatcher;
 
 typedef struct _GDBusInterfaceSkeletonVTable {
-	const GDBusMethodCallDispatcher *dispatchers;
-	GVariant *(*get_properties)(void *userdata);
-	GVariant *(*get_property)(const char *property, GError **error, void *userdata);
-	bool (*set_property)(const char *property, GVariant *value, GError **error, void *userdata);
+	const GDBusMethodCallDispatcher * dispatchers;
+	GVariant *(*get_properties)(void * userdata);
+	GVariant *(*get_property)(const char * property, GError ** error, void * userdata);
+	bool (*set_property)(const char * property, GVariant * value, GError ** error, void * userdata);
 } GDBusInterfaceSkeletonVTable;
 
 /**
  * Definition for interface skeleton with callbacks. */
 typedef struct _GDBusInterfaceSkeletonEx {
 	GDBusInterfaceSkeleton parent;
-	GDBusInterfaceInfo *interface_info;
+	GDBusInterfaceInfo * interface_info;
 	GDBusInterfaceSkeletonVTable vtable;
 	/* user data passed to callback functions */
-	void *userdata;
+	void * userdata;
 } GDBusInterfaceSkeletonEx;
 
-GDBusInterfaceInfo *g_dbus_interface_skeleton_ex_class_get_info(
-		GDBusInterfaceSkeleton *interface_skeleton);
+GDBusInterfaceInfo * g_dbus_interface_skeleton_ex_class_get_info(
+		GDBusInterfaceSkeleton * interface_skeleton);
 
-GDBusInterfaceVTable *g_dbus_interface_skeleton_ex_class_get_vtable(
-		GDBusInterfaceSkeleton *interface_skeleton);
+GDBusInterfaceVTable * g_dbus_interface_skeleton_ex_class_get_vtable(
+		GDBusInterfaceSkeleton * interface_skeleton);
 
-GVariant *g_dbus_interface_skeleton_ex_class_get_properties(
-		GDBusInterfaceSkeleton *interface_skeleton);
+GVariant * g_dbus_interface_skeleton_ex_class_get_properties(
+		GDBusInterfaceSkeleton * interface_skeleton);
 
-void *g_dbus_interface_skeleton_ex_new(GType interface_skeleton_type,
-		GDBusInterfaceInfo *interface_info, const GDBusInterfaceSkeletonVTable *vtable,
-		void *userdata, GDestroyNotify userdata_free_func);
+void * g_dbus_interface_skeleton_ex_new(GType interface_skeleton_type,
+		GDBusInterfaceInfo * interface_info, const GDBusInterfaceSkeletonVTable * vtable,
+		void * userdata, GDestroyNotify userdata_free_func);
 
 /**
  * Create a new message bus GDBusConnection for the given address. */
 static inline GDBusConnection * g_dbus_connection_new_for_address_simple_sync(
 		const char * address, GError ** error) {
 	return g_dbus_connection_new_for_address_sync(address,
-			G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
-			G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
-			NULL, NULL, error);
+	                                              G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
+	                                              G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
+	                                              NULL, NULL, error);
 }
 
-bool g_dbus_connection_emit_properties_changed(GDBusConnection *conn,
-		const char *path, const char *interface, GVariant *changed,
-		GVariant *invalidated, GError **error);
+bool g_dbus_connection_emit_properties_changed(GDBusConnection * conn,
+		const char * path, const char * interface, GVariant * changed,
+		GVariant * invalidated, GError ** error);
 
 char * g_dbus_get_unique_name_sync(GDBusConnection * conn,
 		const char * service);

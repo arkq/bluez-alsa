@@ -16,9 +16,9 @@
  * @param nmemb Number of elements in the buffer.
  * @param size The size of the element.
  * @return On success this function returns 0, otherwise -1. */
-int ffb_init(ffb_t *ffb, size_t nmemb, size_t size) {
+int ffb_init(ffb_t * ffb, size_t nmemb, size_t size) {
 
-	void *ptr;
+	void * ptr;
 	if ((ptr = realloc(ffb->data, nmemb * size)) == NULL)
 		return -1;
 
@@ -36,7 +36,7 @@ int ffb_init(ffb_t *ffb, size_t nmemb, size_t size) {
  * Free resources allocated with the ffb_init().
  *
  * @param ffb Pointer to initialized buffer structure. */
-void ffb_free(ffb_t *ffb) {
+void ffb_free(ffb_t * ffb) {
 	if (ffb->data == NULL)
 		return;
 	free(ffb->data);
@@ -50,7 +50,7 @@ void ffb_free(ffb_t *ffb) {
  * @param nmemb Number of elements to shift.
  * @return Number of shifted elements. Might be less than requested
  *   nmemb in case where ffb_len_out(ffb) < nmemb. */
-int ffb_shift(ffb_t *ffb, size_t nmemb) {
+int ffb_shift(ffb_t * ffb, size_t nmemb) {
 
 	const size_t blen_out = ffb_blen_out(ffb);
 	size_t blen_shift = nmemb * ffb->size;

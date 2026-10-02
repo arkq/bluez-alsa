@@ -78,7 +78,7 @@ void mock_bluez_service_device_add_asha_transport(BlueZMockService * srv,
 void mock_bluez_service_device_profile_new_connection(BlueZMockService * srv,
 		const char * device_path, const char * uuid, GAsyncQueue * ready);
 void mock_bluez_service_device_media_set_configuration(BlueZMockService * srv,
-		const char * device_path, const char * transport_path, const char *uuid,
+		const char * device_path, const char * transport_path, const char * uuid,
 		uint32_t codec_id, const void * configuration, size_t configuration_size,
 		GAsyncQueue * ready);
 

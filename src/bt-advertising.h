@@ -12,22 +12,22 @@
 #include <stddef.h>
 
 #include <gio/gio.h>
-#include <glib-object.h>
 #include <glib.h>
+#include <glib-object.h>
 
 #include "ba-adapter.h"
 #include "error.h"
 
 #define BLUETOOTH_TYPE_ADVERTISING (bluetooth_advertising_get_type())
 G_DECLARE_FINAL_TYPE(BluetoothAdvertising, bluetooth_advertising,
-		BLUETOOTH, ADVERTISING, GObject)
+                     BLUETOOTH, ADVERTISING, GObject)
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(BluetoothAdvertising, g_object_unref)
 
 BluetoothAdvertising * bluetooth_advertising_new(
-		GDBusObjectManagerServer * manager,
-		const char * path,
-		const char * uuid,
-		const char * name);
+	GDBusObjectManagerServer * manager,
+	const char * path,
+	const char * uuid,
+	const char * name);
 
 error_code_t bluetooth_advertising_set_service_data(
 		BluetoothAdvertising * adv,

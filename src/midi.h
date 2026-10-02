@@ -14,13 +14,13 @@
 
 #include "ba-transport.h"
 
-int midi_transport_alsa_seq_create(struct ba_transport *t);
-int midi_transport_alsa_seq_delete(struct ba_transport *t);
+int midi_transport_alsa_seq_create(struct ba_transport * t);
+int midi_transport_alsa_seq_delete(struct ba_transport * t);
 
-int midi_transport_start_watch_alsa_seq(struct ba_transport *t);
-int midi_transport_start_watch_ble_midi(struct ba_transport *t);
+int midi_transport_start_watch_alsa_seq(struct ba_transport * t);
+int midi_transport_start_watch_ble_midi(struct ba_transport * t);
 
-int midi_transport_start(struct ba_transport *t);
-int midi_transport_stop(struct ba_transport *t);
+int midi_transport_start(struct ba_transport * t);
+int midi_transport_stop(struct ba_transport * t);
 
 #endif

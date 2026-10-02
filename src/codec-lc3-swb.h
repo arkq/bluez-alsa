@@ -20,8 +20,8 @@
 
 #include <lc3.h>
 
-#include "shared/h2.h"
 #include "shared/ffb.h"
+#include "shared/h2.h"
 
 /* LC3-SWB uses LC3 encoding with precisely defined parameters: mono, 32 kHz
  * sample rate, 7.5 ms frame duration. Hence, the size of the input (number
@@ -68,10 +68,10 @@ struct esco_lc3_swb {
 
 };
 
-void lc3_swb_init(struct esco_lc3_swb *lc3_swb);
+void lc3_swb_init(struct esco_lc3_swb * lc3_swb);
 
-ssize_t lc3_swb_get_delay(struct esco_lc3_swb *lc3_swb);
-ssize_t lc3_swb_encode(struct esco_lc3_swb *lc3_swb);
-ssize_t lc3_swb_decode(struct esco_lc3_swb *lc3_swb);
+ssize_t lc3_swb_get_delay(struct esco_lc3_swb * lc3_swb);
+ssize_t lc3_swb_encode(struct esco_lc3_swb * lc3_swb);
+ssize_t lc3_swb_decode(struct esco_lc3_swb * lc3_swb);
 
 #endif

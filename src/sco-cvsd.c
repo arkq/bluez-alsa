@@ -20,12 +20,12 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
-void *sco_cvsd_enc_thread(struct ba_transport_pcm *t_pcm) {
+void * sco_cvsd_enc_thread(struct ba_transport_pcm * t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = t_pcm->t;
+	struct ba_transport * t = t_pcm->t;
 	struct io_poll io = { .timeout = -1 };
 
 	const size_t mtu_samples = t->mtu_write / sizeof(int16_t);
@@ -54,7 +54,7 @@ void *sco_cvsd_enc_thread(struct ba_transport_pcm *t_pcm) {
 			continue;
 		}
 
-		const int16_t *input = buffer.data;
+		const int16_t * input = buffer.data;
 		const size_t samples = ffb_len_out(&buffer);
 		size_t input_samples = samples;
 
@@ -87,12 +87,12 @@ fail_init:
 	return NULL;
 }
 
-void *sco_cvsd_dec_thread(struct ba_transport_pcm *t_pcm) {
+void * sco_cvsd_dec_thread(struct ba_transport_pcm * t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = t_pcm->t;
+	struct ba_transport * t = t_pcm->t;
 	struct io_poll io = { .timeout = -1 };
 
 	ffb_t buffer = { 0 };

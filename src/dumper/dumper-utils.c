@@ -58,6 +58,7 @@ const char * ba_transport_to_string(const struct ba_transport * t) {
 const char * ba_transport_pcm_to_string(const struct ba_transport_pcm * t_pcm) {
 	static char buffer[64];
 	snprintf(buffer, sizeof(buffer), "s%u-%u-%uc",
-			BA_TRANSPORT_PCM_FORMAT_WIDTH(t_pcm->format), t_pcm->rate, t_pcm->channels);
+	         BA_TRANSPORT_PCM_FORMAT_WIDTH(t_pcm->format),
+	         t_pcm->rate, t_pcm->channels);
 	return buffer;
 }

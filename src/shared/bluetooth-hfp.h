@@ -127,7 +127,7 @@ enum __attribute__ ((packed)) hfp_ind {
 	HFP_IND_SIGNAL,
 	HFP_IND_ROAM,
 	HFP_IND_BATTCHG,
-	__HFP_IND_MAX
+	__HFP_IND_MAX,
 };
 
 /* no Home/Roam network available */

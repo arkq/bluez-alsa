@@ -26,19 +26,19 @@
 #define SBC_QUALITY_XQ     3
 #define SBC_QUALITY_XQPLUS 4
 
-uint8_t sbc_a2dp_get_bitpool(const a2dp_sbc_t *conf, unsigned int quality);
+uint8_t sbc_a2dp_get_bitpool(const a2dp_sbc_t * conf, unsigned int quality);
 
 #if ENABLE_FASTSTREAM
-int sbc_init_a2dp_faststream(sbc_t *sbc, unsigned long flags,
-		const void *conf, size_t size, bool voice);
-int sbc_reinit_a2dp_faststream(sbc_t *sbc, unsigned long flags,
-		const void *conf, size_t size, bool voice);
+int sbc_init_a2dp_faststream(sbc_t * sbc, unsigned long flags,
+		const void * conf, size_t size, bool voice);
+int sbc_reinit_a2dp_faststream(sbc_t * sbc, unsigned long flags,
+		const void * conf, size_t size, bool voice);
 #endif
 
-const char *sbc_strerror(int err);
+const char * sbc_strerror(int err);
 
 #if DEBUG
-void sbc_print_internals(const sbc_t *sbc);
+void sbc_print_internals(const sbc_t * sbc);
 #endif
 
 #endif

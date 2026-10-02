@@ -11,8 +11,8 @@
 #include <glib.h>
 
 #include "fixtures.h"
-#include "shared/h2.h"
 #include "shared/defs.h"
+#include "shared/h2.h"
 
 CK_START_TEST(test_h2_header_pack) {
 
@@ -26,7 +26,8 @@ CK_START_TEST(test_h2_header_pack) {
 	ck_assert_uint_eq(h2_header_pack(2), h2_2);
 	ck_assert_uint_eq(h2_header_pack(3), h2_3);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_h2_header_unpack) {
 
@@ -40,7 +41,8 @@ CK_START_TEST(test_h2_header_unpack) {
 	ck_assert_uint_eq(h2_header_unpack(h2_2), 2);
 	ck_assert_uint_eq(h2_header_unpack(h2_3), 3);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_h2_header_find) {
 
@@ -83,7 +85,8 @@ CK_START_TEST(test_h2_header_find) {
 	ck_assert_ptr_null(h2_header_find(raw[5], &len));
 	ck_assert_int_eq(len, 1);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 int main(void) {
 

@@ -15,12 +15,12 @@
 #include <string.h>
 
 #include <gio/gio.h>
-#include <glib-object.h>
 #include <glib.h>
+#include <glib-object.h>
 
 #include "ba-adapter.h"
-#include "bluez-iface.h"
 #include "bluez.h"
+#include "bluez-iface.h"
 #include "dbus.h"
 #include "shared/log.h"
 
@@ -256,8 +256,8 @@ static void register_application_finish(
 
 	g_autoptr(GDBusMessage) rep;
 	g_autoptr(GError) err = NULL;
-	if ((rep = g_dbus_connection_send_message_with_reply_finish(
-					G_DBUS_CONNECTION(source), result, &err)) != NULL)
+	if ((rep = g_dbus_connection_send_message_with_reply_finish(G_DBUS_CONNECTION(source), result,
+	                                                            &err)) != NULL)
 		g_dbus_message_to_gerror(rep, &err);
 
 	g_autoptr(GTask) task;
@@ -292,8 +292,8 @@ void bluetooth_gatt_application_register(
 	g_autoptr(GDBusConnection) conn = g_dbus_object_manager_server_get_connection(app->manager);
 
 	g_autoptr(GDBusMessage) msg;
-	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE,
-			adapter->bluez_dbus_path, BLUEZ_IFACE_GATT_MANAGER, "RegisterApplication");
+	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE, adapter->bluez_dbus_path,
+	                                     BLUEZ_IFACE_GATT_MANAGER, "RegisterApplication");
 	g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", app->path, NULL));
 
 	app->register_cb = callback;
@@ -301,8 +301,8 @@ void bluetooth_gatt_application_register(
 
 	debug("Registering GATT application: %s", app->path);
 	g_dbus_connection_send_message_with_reply(conn, msg,
-			G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL,
-			register_application_finish, g_object_ref(app));
+	                                          G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL,
+	                                          register_application_finish, g_object_ref(app));
 
 }
 

@@ -33,7 +33,7 @@
 
 /**
  * Thread function callback casting wrapper. */
-#define PTHREAD_FUNC(f) ((void *(*)(void *))(f))
+#define PTHREAD_FUNC(f) ((void * (*)(void *))(f))
 
 /**
  * Qsort comparision function casting wrapper. */

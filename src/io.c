@@ -26,8 +26,8 @@
 /**
  * Read data from the BT transport (SCO or SEQPACKET) socket. */
 ssize_t io_bt_read(
-		struct ba_transport_pcm *pcm,
-		void *buffer,
+		struct ba_transport_pcm * pcm,
+		void * buffer,
 		size_t count) {
 
 	const int fd = pcm->fd_bt;
@@ -47,7 +47,7 @@ retry:
 		case ETIMEDOUT:
 			error("BT read error: %s", strerror(errno));
 			ret = 0;
-	}
+		}
 
 	if (ret == 0)
 		ba_transport_pcm_bt_release(pcm);
@@ -61,8 +61,8 @@ retry:
  * Note:
  * This function may temporally re-enable thread cancellation! */
 ssize_t io_bt_write(
-		struct ba_transport_pcm *pcm,
-		const void *buffer,
+		struct ba_transport_pcm * pcm,
+		const void * buffer,
 		size_t count) {
 
 	const int fd = pcm->fd_bt;
@@ -101,8 +101,8 @@ retry:
 /**
  * Scale PCM signal according to the volume configuration. */
 void io_pcm_scale(
-		struct ba_transport_pcm *pcm,
-		void *buffer,
+		struct ba_transport_pcm * pcm,
+		void * buffer,
 		size_t samples) {
 
 	pthread_mutex_lock(&pcm->mutex);
@@ -152,7 +152,7 @@ void io_pcm_scale(
 
 /**
  * Flush read buffer of the transport PCM FIFO. */
-ssize_t io_pcm_flush(struct ba_transport_pcm *pcm) {
+ssize_t io_pcm_flush(struct ba_transport_pcm * pcm) {
 
 	ssize_t samples = 0;
 	ssize_t rv;
@@ -178,8 +178,8 @@ ssize_t io_pcm_flush(struct ba_transport_pcm *pcm) {
 /**
  * Read PCM signal from the transport PCM FIFO. */
 ssize_t io_pcm_read(
-		struct ba_transport_pcm *pcm,
-		void *buffer,
+		struct ba_transport_pcm * pcm,
+		void * buffer,
 		size_t samples) {
 
 	pthread_mutex_lock(&pcm->mutex);
@@ -189,7 +189,7 @@ ssize_t io_pcm_read(
 	ssize_t ret;
 
 	while ((ret = read(fd, buffer, samples * sample_size)) == -1 &&
-			errno == EINTR)
+	       errno == EINTR)
 		continue;
 
 	if (ret == 0) {
@@ -210,14 +210,14 @@ ssize_t io_pcm_read(
 /**
  * Write PCM signal to the transport PCM FIFO. */
 ssize_t io_pcm_write(
-		struct ba_transport_pcm *pcm,
-		const void *buffer,
+		struct ba_transport_pcm * pcm,
+		const void * buffer,
 		size_t samples) {
 
 	pthread_mutex_lock(&pcm->mutex);
 
 	const int fd = pcm->fd;
-	const uint8_t *buffer_ = buffer;
+	const uint8_t * buffer_ = buffer;
 	size_t len = samples * BA_TRANSPORT_PCM_FORMAT_BYTES(pcm->format);
 	ssize_t ret;
 
@@ -261,8 +261,8 @@ final:
 }
 
 static void io_poll_drain_complete(
-		struct io_poll *io,
-		struct ba_transport_pcm *pcm) {
+		struct io_poll * io,
+		struct ba_transport_pcm * pcm) {
 
 	pthread_mutex_lock(&pcm->mutex);
 	pcm->drained = true;
@@ -281,13 +281,14 @@ static void io_poll_drain_complete(
  * Note:
  * This function temporally re-enables thread cancellation! */
 ssize_t io_poll_and_read_bt(
-		struct io_poll *io,
-		struct ba_transport_pcm *pcm,
-		ffb_t *buffer) {
+		struct io_poll * io,
+		struct ba_transport_pcm * pcm,
+		ffb_t * buffer) {
 
 	struct pollfd fds[] = {
 		{ pcm->pipe[0], POLLIN, 0 },
-		{ pcm->fd_bt, POLLIN, 0 }};
+		{ pcm->fd_bt, POLLIN, 0 },
+	};
 
 repoll:
 
@@ -319,13 +320,14 @@ repoll:
  * Note:
  * This function temporally re-enables thread cancellation! */
 ssize_t io_poll_and_read_pcm(
-		struct io_poll *io,
-		struct ba_transport_pcm *pcm,
-		ffb_t *buffer) {
+		struct io_poll * io,
+		struct ba_transport_pcm * pcm,
+		ffb_t * buffer) {
 
 	struct pollfd fds[] = {
 		{ pcm->pipe[0], POLLIN, 0 },
-		{ -1, POLLIN, 0 }};
+		{ -1, POLLIN, 0 },
+	};
 
 repoll:
 

@@ -77,9 +77,9 @@ const enum ba_transport_pcm_channel a2dp_channel_map_7_1[] = {
  * a pointer to an unsigned integer variable initialized to 0. */
 error_code_t a2dp_bit_mapping_foreach_get_best_channel_mode(
 		struct a2dp_bit_mapping mapping,
-		void *userdata) {
+		void * userdata) {
 
-	unsigned int *output = userdata;
+	unsigned int * output = userdata;
 
 	/* Skip multi-channel modes. If desired, multi-channel mode can be selected
 	 * manually by the user using the SelectCodec() D-Bus method. */
@@ -103,9 +103,9 @@ error_code_t a2dp_bit_mapping_foreach_get_best_channel_mode(
  * a pointer to an unsigned integer variable initialized to 0. */
 error_code_t a2dp_bit_mapping_foreach_get_best_sample_rate(
 		struct a2dp_bit_mapping mapping,
-		void *userdata) {
+		void * userdata) {
 
-	unsigned int *output = userdata;
+	unsigned int * output = userdata;
 
 	/* Skip anything above 48000 Hz. If desired, bigger sample rates can be
 	 * selected manually by the user using the SelectCodec() D-Bus method. */
@@ -124,10 +124,10 @@ error_code_t a2dp_bit_mapping_foreach_get_best_sample_rate(
 /**
  * Iterate over A2DP bit-field mappings. */
 error_code_t a2dp_bit_mapping_foreach(
-		const struct a2dp_bit_mapping *mappings,
+		const struct a2dp_bit_mapping * mappings,
 		uint32_t bitmask,
 		a2dp_bit_mapping_foreach_func func,
-		void *userdata) {
+		void * userdata) {
 	error_code_t err = ERROR_CODE_NOT_FOUND;
 	for (size_t i = 0; mappings[i].bit_value != 0; i++)
 		if (mappings[i].bit_value & bitmask)
@@ -144,7 +144,7 @@ error_code_t a2dp_bit_mapping_foreach(
  * @return This function returns the index of the mapping, or -1 if mapping
  *   for the given bit-value does not exist. */
 ssize_t a2dp_bit_mapping_lookup(
-		const struct a2dp_bit_mapping *mappings,
+		const struct a2dp_bit_mapping * mappings,
 		uint32_t bit_value) {
 	for (size_t i = 0; mappings[i].bit_value != 0; i++)
 		if (mappings[i].bit_value == bit_value)
@@ -161,13 +161,13 @@ ssize_t a2dp_bit_mapping_lookup(
  * @return On success this function returns the bit-value. Otherwise,
  *   0 is returned. */
 uint32_t a2dp_bit_mapping_lookup_value(
-		const struct a2dp_bit_mapping *mappings,
+		const struct a2dp_bit_mapping * mappings,
 		uint32_t bitmask,
 		unsigned int value) {
 	uint32_t bit_value = 0;
 	for (size_t i = 0; mappings[i].bit_value != 0; i++)
 		if (mappings[i].bit_value & bitmask &&
-				mappings[i].value == value)
+		    mappings[i].value == value)
 			bit_value = mappings[i].bit_value;
 	return bit_value;
 }
@@ -182,8 +182,8 @@ void a2dp_caps_bitwise_intersect(
 		const void * restrict mask,
 		size_t size) {
 
-	const uint8_t *caps_mask = mask;
-	uint8_t *caps = capabilities;
+	const uint8_t * caps_mask = mask;
+	uint8_t * caps = capabilities;
 
 	for (size_t i = 0; i < size; i++)
 		caps[i] = caps[i] & caps_mask[i];
@@ -193,7 +193,7 @@ void a2dp_caps_bitwise_intersect(
 /**
  * Function which returns true only for the main A2DP stream. */
 bool a2dp_caps_has_main_stream_only(
-		const void *capabilities,
+		const void * capabilities,
 		enum a2dp_stream stream) {
 	(void)capabilities;
 	return stream == A2DP_MAIN;
@@ -258,7 +258,7 @@ error_code_t a2dp_seps_init(void) {
 	for (size_t i = 0; a2dp_seps[i] != NULL; i++) {
 		/* We want the list of SEPs to be seen as const outside
 		 * of this file, so we have to cast it here. */
-		struct a2dp_sep *sep = (struct a2dp_sep *)a2dp_seps[i];
+		struct a2dp_sep * sep = (struct a2dp_sep *)a2dp_seps[i];
 
 		switch (sep->config.type) {
 		case A2DP_SOURCE:
@@ -283,10 +283,10 @@ error_code_t a2dp_seps_init(void) {
 static int a2dp_codec_id_cmp(uint32_t a, uint32_t b) {
 	if (a < A2DP_CODEC_VENDOR || b < A2DP_CODEC_VENDOR)
 		return a < b ? -1 : (a == b ? 0 : 1);
-	const char *a_name;
+	const char * a_name;
 	if ((a_name = a2dp_codec_to_string(a)) == NULL)
 		return 1;
-	const char *b_name;
+	const char * b_name;
 	if ((b_name = a2dp_codec_to_string(b)) == NULL)
 		return -1;
 	return strcasecmp(a_name, b_name);
@@ -300,8 +300,8 @@ static int a2dp_codec_id_cmp(uint32_t a, uint32_t b) {
  *  - order SEPs by codec ID
  *  - order vendor codecs alphabetically (case insensitive) */
 int a2dp_sep_config_cmp(
-		const struct a2dp_sep_config *a,
-		const struct a2dp_sep_config *b) {
+		const struct a2dp_sep_config * a,
+		const struct a2dp_sep_config * b) {
 	if (a->type == b->type)
 		return a2dp_codec_id_cmp(a->codec_id, b->codec_id);
 	return a->type - b->type;
@@ -309,7 +309,7 @@ int a2dp_sep_config_cmp(
 
 /**
  * Compare A2DP SEPs. */
-int a2dp_sep_ptr_cmp(const struct a2dp_sep **a, const struct a2dp_sep **b) {
+int a2dp_sep_ptr_cmp(const struct a2dp_sep ** a, const struct a2dp_sep ** b) {
 	return a2dp_sep_config_cmp(&(*a)->config, &(*b)->config);
 }
 
@@ -320,10 +320,10 @@ int a2dp_sep_ptr_cmp(const struct a2dp_sep **a, const struct a2dp_sep **b) {
  * @param codec_id BlueALSA A2DP 32-bit codec ID.
  * @return On success this function returns the address of the SEP
  *   configuration structure. Otherwise, NULL is returned. */
-const struct a2dp_sep *a2dp_sep_lookup(enum a2dp_type type, uint32_t codec_id) {
+const struct a2dp_sep * a2dp_sep_lookup(enum a2dp_type type, uint32_t codec_id) {
 	for (size_t i = 0; a2dp_seps[i] != NULL; i++)
 		if (a2dp_seps[i]->config.type == type &&
-				a2dp_seps[i]->config.codec_id == codec_id)
+		    a2dp_seps[i]->config.codec_id == codec_id)
 			return a2dp_seps[i];
 	return NULL;
 }
@@ -334,7 +334,7 @@ const struct a2dp_sep *a2dp_sep_lookup(enum a2dp_type type, uint32_t codec_id) {
  * @param capabilities A2DP vendor codec capabilities.
  * @param size A2DP vendor codec capabilities size.
  * @return On success this function returns A2DP 32-bit vendor codec ID. */
-uint32_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
+uint32_t a2dp_get_vendor_codec_id(const void * capabilities, size_t size) {
 	if (size < sizeof(a2dp_vendor_info_t))
 		return errno = EINVAL, A2DP_CODEC_UNDEFINED;
 	return a2dp_codec_from_vendor_info(capabilities);
@@ -343,8 +343,8 @@ uint32_t a2dp_get_vendor_codec_id(const void *capabilities, size_t size) {
 /**
  * Select best possible A2DP codec configuration. */
 error_code_t a2dp_select_configuration(
-		const struct a2dp_sep *sep,
-		void *capabilities,
+		const struct a2dp_sep * sep,
+		void * capabilities,
 		size_t size) {
 
 	if (size == sep->config.caps_size)
@@ -363,8 +363,8 @@ error_code_t a2dp_select_configuration(
  * @return On success this function returns ERROR_CODE_OK. Otherwise,
  *   one of the application error codes is returned. */
 error_code_t a2dp_check_configuration(
-		const struct a2dp_sep *sep,
-		const void *configuration,
+		const struct a2dp_sep * sep,
+		const void * configuration,
 		size_t size) {
 
 	if (size == sep->config.caps_size)

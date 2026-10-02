@@ -37,7 +37,7 @@ struct a2dp_bit_mapping {
 		/* Channel mode mapping with channel count and channel map. */
 		struct {
 			unsigned int channels;
-			const enum ba_transport_pcm_channel *map;
+			const enum ba_transport_pcm_channel * map;
 		} ch;
 	};
 };
@@ -51,7 +51,7 @@ static_assert(
  * Callback function for iterating over A2DP bit-field. */
 typedef error_code_t (*a2dp_bit_mapping_foreach_func)(
 		struct a2dp_bit_mapping mapping,
-		void *userdata);
+		void * userdata);
 
 extern const enum ba_transport_pcm_channel a2dp_channel_map_mono[];
 extern const enum ba_transport_pcm_channel a2dp_channel_map_stereo[];
@@ -60,23 +60,23 @@ extern const enum ba_transport_pcm_channel a2dp_channel_map_7_1[];
 
 error_code_t a2dp_bit_mapping_foreach_get_best_channel_mode(
 		struct a2dp_bit_mapping mapping,
-		void *userdata);
+		void * userdata);
 error_code_t a2dp_bit_mapping_foreach_get_best_sample_rate(
 		struct a2dp_bit_mapping mapping,
-		void *userdata);
+		void * userdata);
 
 error_code_t a2dp_bit_mapping_foreach(
-		const struct a2dp_bit_mapping *mappings,
+		const struct a2dp_bit_mapping * mappings,
 		uint32_t bitmask,
 		a2dp_bit_mapping_foreach_func func,
-		void *userdata);
+		void * userdata);
 
 ssize_t a2dp_bit_mapping_lookup(
-		const struct a2dp_bit_mapping *mappings,
+		const struct a2dp_bit_mapping * mappings,
 		uint32_t bit_value);
 
 uint32_t a2dp_bit_mapping_lookup_value(
-		const struct a2dp_bit_mapping *mappings,
+		const struct a2dp_bit_mapping * mappings,
 		uint32_t bitmask,
 		unsigned int value);
 
@@ -93,7 +93,7 @@ void a2dp_caps_bitwise_intersect(
 		size_t size);
 
 bool a2dp_caps_has_main_stream_only(
-		const void *capabilities,
+		const void * capabilities,
 		enum a2dp_stream stream);
 
 /* A2DP capabilities helper functions. */
@@ -102,36 +102,36 @@ struct a2dp_caps_helpers {
 	/**
 	 * Function for codec-specific capabilities capping. */
 	void (*intersect)(
-			void *capabilities,
-			const void *mask);
+			void * capabilities,
+			const void * mask);
 
 	/**
 	 * Function for checking whether given stream direction is supported. */
 	bool (*has_stream)(
-			const void *capabilities,
+			const void * capabilities,
 			enum a2dp_stream stream);
 
 	/* Function for iterating over channel modes. */
 	error_code_t (*foreach_channel_mode)(
-			const void *capabilities,
+			const void * capabilities,
 			enum a2dp_stream stream,
 			a2dp_bit_mapping_foreach_func func,
-			void *userdata);
+			void * userdata);
 
 	/* Function for iterating over sample rates. */
 	error_code_t (*foreach_sample_rate)(
-			const void *capabilities,
+			const void * capabilities,
 			enum a2dp_stream stream,
 			a2dp_bit_mapping_foreach_func func,
-			void *userdata);
+			void * userdata);
 
 	void (*select_channel_mode)(
-			void *capabilities,
+			void * capabilities,
 			enum a2dp_stream stream,
 			unsigned int channels);
 
 	void (*select_sample_rate)(
-			void *capabilities,
+			void * capabilities,
 			enum a2dp_stream stream,
 			unsigned int rate);
 
@@ -198,28 +198,28 @@ extern struct a2dp_sep * const a2dp_seps[];
 error_code_t a2dp_seps_init(void);
 
 int a2dp_sep_config_cmp(
-		const struct a2dp_sep_config *a,
-		const struct a2dp_sep_config *b);
+		const struct a2dp_sep_config * a,
+		const struct a2dp_sep_config * b);
 int a2dp_sep_ptr_cmp(
-		const struct a2dp_sep **a,
-		const struct a2dp_sep **b);
+		const struct a2dp_sep ** a,
+		const struct a2dp_sep ** b);
 
-const struct a2dp_sep *a2dp_sep_lookup(
+const struct a2dp_sep * a2dp_sep_lookup(
 		enum a2dp_type type,
 		uint32_t codec_id);
 
 uint32_t a2dp_get_vendor_codec_id(
-		const void *capabilities,
+		const void * capabilities,
 		size_t size);
 
 error_code_t a2dp_select_configuration(
-		const struct a2dp_sep *sep,
-		void *capabilities,
+		const struct a2dp_sep * sep,
+		void * capabilities,
 		size_t size);
 
 error_code_t a2dp_check_configuration(
-		const struct a2dp_sep *sep,
-		const void *configuration,
+		const struct a2dp_sep * sep,
+		const void * configuration,
 		size_t size);
 
 #endif

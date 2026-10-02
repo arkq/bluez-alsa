@@ -15,20 +15,20 @@
 #include "shared/log.h"
 
 static int alsa_pcm_set_hw_params(
-		struct alsa_pcm *pcm,
+		struct alsa_pcm * pcm,
 		snd_pcm_format_t format_1,
 		snd_pcm_format_t format_2,
-		snd_pcm_format_t *format,
+		snd_pcm_format_t * format,
 		unsigned int channels,
-		unsigned int *rate,
+		unsigned int * rate,
 		bool exact_rate,
-		unsigned int *buffer_time,
-		unsigned int *period_time,
-		char **msg) {
+		unsigned int * buffer_time,
+		unsigned int * period_time,
+		char ** msg) {
 
 	const snd_pcm_access_t access = SND_PCM_ACCESS_RW_INTERLEAVED;
-	snd_pcm_t *snd_pcm = pcm->pcm;
-	snd_pcm_hw_params_t *params;
+	snd_pcm_t * snd_pcm = pcm->pcm;
+	snd_pcm_hw_params_t * params;
 	char buf[256];
 	int dir;
 	int err;
@@ -43,7 +43,7 @@ static int alsa_pcm_set_hw_params(
 
 	if ((err = snd_pcm_hw_params_set_access(snd_pcm, params, access)) != 0) {
 		snprintf(buf, sizeof(buf), "Set assess type: %s: %s",
-				snd_strerror(err), snd_pcm_access_name(access));
+		         snd_strerror(err), snd_pcm_access_name(access));
 		goto fail;
 	}
 
@@ -56,13 +56,13 @@ static int alsa_pcm_set_hw_params(
 			*format = format_2;
 		else {
 			snprintf(buf, sizeof(buf), "Set format: %s: %s and %s",
-					snd_strerror(err), snd_pcm_format_name(format_1), snd_pcm_format_name(format_2));
+			         snd_strerror(err), snd_pcm_format_name(format_1), snd_pcm_format_name(format_2));
 			goto fail;
 		}
 	}
 	else {
 		snprintf(buf, sizeof(buf), "Set format: %s: %s",
-				snd_strerror(err), snd_pcm_format_name(format_1));
+		         snd_strerror(err), snd_pcm_format_name(format_1));
 		goto fail;
 	}
 
@@ -107,12 +107,12 @@ fail:
 }
 
 static int alsa_pcm_set_sw_params(
-		struct alsa_pcm *pcm,
+		struct alsa_pcm * pcm,
 		snd_pcm_uframes_t start_threshold,
-		char **msg) {
+		char ** msg) {
 
-	snd_pcm_t *snd_pcm = pcm->pcm;
-	snd_pcm_sw_params_t *params;
+	snd_pcm_t * snd_pcm = pcm->pcm;
+	snd_pcm_sw_params_t * params;
 	char buf[256];
 	int err;
 
@@ -141,13 +141,13 @@ fail:
 	return err;
 }
 
-void alsa_pcm_init(struct alsa_pcm *pcm) {
+void alsa_pcm_init(struct alsa_pcm * pcm) {
 	memset(pcm, 0, sizeof(*pcm));
 }
 
 int alsa_pcm_open(
-		struct alsa_pcm *pcm,
-		const char *name,
+		struct alsa_pcm * pcm,
+		const char * name,
 		snd_pcm_format_t format_1,
 		snd_pcm_format_t format_2,
 		unsigned int channels,
@@ -155,9 +155,9 @@ int alsa_pcm_open(
 		unsigned int buffer_time,
 		unsigned int period_time,
 		int flags,
-		char **msg) {
+		char ** msg) {
 
-	char *tmp = NULL;
+	char * tmp = NULL;
 	char buf[256];
 	unsigned int actual_buffer_time = buffer_time;
 	unsigned int actual_period_time = period_time;
@@ -170,9 +170,9 @@ int alsa_pcm_open(
 		goto fail;
 	}
 
-	if ((err = alsa_pcm_set_hw_params(pcm, format_1, format_2,
-				&pcm->format, channels, &actual_rate, exact_rate,
-				&actual_buffer_time, &actual_period_time, &tmp)) != 0) {
+	if ((err = alsa_pcm_set_hw_params(pcm, format_1, format_2, &pcm->format,
+	                                  channels, &actual_rate, exact_rate,
+	                                  &actual_buffer_time, &actual_period_time, &tmp)) != 0) {
 		snprintf(buf, sizeof(buf), "Set HW params: %s", tmp);
 		goto fail;
 	}
@@ -221,15 +221,15 @@ fail:
 	return err;
 }
 
-void alsa_pcm_close(struct alsa_pcm *pcm) {
+void alsa_pcm_close(struct alsa_pcm * pcm) {
 	if (pcm->pcm != NULL)
 		snd_pcm_close(pcm->pcm);
 	pcm->pcm = NULL;
 }
 
 int alsa_pcm_write(
-		struct alsa_pcm *pcm,
-		ffb_t *buffer,
+		struct alsa_pcm * pcm,
+		ffb_t * buffer,
 		bool drain) {
 
 	snd_pcm_sframes_t avail = 0;
@@ -258,7 +258,7 @@ int alsa_pcm_write(
 	if (!drain) {
 
 		if (frames + hw_avail < pcm->period_frames &&
-					snd_pcm_state(pcm->pcm) == SND_PCM_STATE_RUNNING) {
+		    snd_pcm_state(pcm->pcm) == SND_PCM_STATE_RUNNING) {
 			/* When the stream runs dry we drain the ALSA buffer and leave the
 			 * ALSA device stopped until fresh frames arrive from the server. */
 			warn("Draining ALSA playback PCM to avoid underrun");
@@ -326,8 +326,8 @@ int alsa_pcm_write(
 	return 0;
 }
 
-void alsa_pcm_dump(const struct alsa_pcm *pcm, FILE *fp) {
-	snd_output_t *out;
+void alsa_pcm_dump(const struct alsa_pcm * pcm, FILE * fp) {
+	snd_output_t * out;
 	snd_output_stdio_attach(&out, fp, 0);
 	snd_pcm_dump(pcm->pcm, out);
 	snd_output_close(out);

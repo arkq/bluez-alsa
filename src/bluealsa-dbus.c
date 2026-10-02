@@ -25,8 +25,8 @@
 
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
-#include <glib-object.h>
 #include <glib.h>
+#include <glib-object.h>
 
 #include "a2dp.h"
 #include "ba-adapter.h"
@@ -38,24 +38,24 @@
 #include "bluez.h"
 #include "dbus.h"
 #include "error.h"
-#include "utils.h"
 #include "shared/bluetooth-a2dp.h"
 #include "shared/bluetooth-asha.h"
 #include "shared/bluetooth-hfp.h"
 #include "shared/defs.h"
 #include "shared/log.h"
+#include "utils.h"
 
-static const char *bluealsa_dbus_manager_path = "/org/bluealsa";
-static GDBusObjectManagerServer *bluealsa_dbus_manager = NULL;
+static const char * bluealsa_dbus_manager_path = "/org/bluealsa";
+static GDBusObjectManagerServer * bluealsa_dbus_manager = NULL;
 
-static GVariant *ba_variant_new_bluealsa_version(void) {
+static GVariant * ba_variant_new_bluealsa_version(void) {
 	return g_variant_new_string(PACKAGE_VERSION);
 }
 
-static GVariant *ba_variant_new_bluealsa_adapters(void) {
+static GVariant * ba_variant_new_bluealsa_adapters(void) {
 
-	const char *strv[ARRAYSIZE(config.adapters)];
-	GVariant *variant;
+	const char * strv[ARRAYSIZE(config.adapters)];
+	GVariant * variant;
 	size_t n = 0;
 
 	pthread_mutex_lock(&config.adapters_mutex);
@@ -71,10 +71,10 @@ static GVariant *ba_variant_new_bluealsa_adapters(void) {
 	return variant;
 }
 
-static GVariant *ba_variant_new_bluealsa_profiles(void) {
+static GVariant * ba_variant_new_bluealsa_profiles(void) {
 
 	const struct {
-		const char *name;
+		const char * name;
 		bool enabled;
 	} profiles[] = {
 		{ BLUEALSA_TRANSPORT_TYPE_A2DP_SOURCE, config.profile.a2dp_source },
@@ -95,7 +95,7 @@ static GVariant *ba_variant_new_bluealsa_profiles(void) {
 #endif
 	};
 
-	const char *strv[ARRAYSIZE(profiles)];
+	const char * strv[ARRAYSIZE(profiles)];
 	size_t n = 0;
 
 	for (size_t i = 0; i < ARRAYSIZE(profiles); i++)
@@ -122,12 +122,11 @@ static GVariant * ba_variant_new_bluealsa_codecs(void) {
 	}
 
 	/* Expose A2DP codecs always in the same order. */
-	qsort(a2dp_seps_tmp, n, sizeof(*a2dp_seps_tmp),
-			QSORT_COMPAR(a2dp_sep_ptr_cmp));
+	qsort(a2dp_seps_tmp, n, sizeof(*a2dp_seps_tmp), QSORT_COMPAR(a2dp_sep_ptr_cmp));
 
 	for (size_t i = 0; i < n; i++) {
 		const char * profile = a2dp_seps_tmp[i]->config.type == A2DP_SOURCE ?
-				BLUEALSA_TRANSPORT_TYPE_A2DP_SOURCE : BLUEALSA_TRANSPORT_TYPE_A2DP_SINK;
+		                       BLUEALSA_TRANSPORT_TYPE_A2DP_SOURCE : BLUEALSA_TRANSPORT_TYPE_A2DP_SINK;
 		const char * name = a2dp_codec_to_string(a2dp_seps_tmp[i]->config.codec_id);
 		snprintf(tmp[i], sizeof(tmp[i]), "%s:%s", profile, name);
 		strv[i] = (const char *)&tmp[i];
@@ -136,7 +135,8 @@ static GVariant * ba_variant_new_bluealsa_codecs(void) {
 #if ENABLE_ASHA
 	static const char * asha_profiles[] = {
 		BLUEALSA_TRANSPORT_TYPE_ASHA_SOURCE,
-		BLUEALSA_TRANSPORT_TYPE_ASHA_SINK };
+		BLUEALSA_TRANSPORT_TYPE_ASHA_SINK,
+	};
 	for (size_t i = 0; i < ARRAYSIZE(asha_profiles); i++) {
 		const char * name = asha_codec_to_string(ASHA_CODEC_G722);
 		snprintf(tmp[n], sizeof(tmp[n]), "%s:%s", asha_profiles[i], name);
@@ -148,7 +148,7 @@ static GVariant * ba_variant_new_bluealsa_codecs(void) {
 	static const char * hfp_profiles[] = {
 #if ENABLE_OFONO
 		BLUEALSA_TRANSPORT_TYPE_HFP_OFONO,
-# endif
+#endif
 		BLUEALSA_TRANSPORT_TYPE_HFP_AG,
 		BLUEALSA_TRANSPORT_TYPE_HFP_HF,
 	};
@@ -177,7 +177,9 @@ static GVariant * ba_variant_new_bluealsa_codecs(void) {
 
 	static const char * hsp_profiles[] = {
 		BLUEALSA_TRANSPORT_TYPE_HSP_AG,
-		BLUEALSA_TRANSPORT_TYPE_HSP_HS };
+		BLUEALSA_TRANSPORT_TYPE_HSP_HS,
+	};
+
 	for (size_t i = 0; i < ARRAYSIZE(hsp_profiles); i++) {
 		const char * name = hfp_codec_to_string(HFP_CODEC_CVSD);
 		snprintf(tmp[n], sizeof(tmp[n]), "%s:%s", hsp_profiles[i], name);
@@ -188,19 +190,19 @@ static GVariant * ba_variant_new_bluealsa_codecs(void) {
 	return g_variant_new_strv(strv, n);
 }
 
-GVariant *ba_variant_new_device_path(const struct ba_device *d) {
+GVariant * ba_variant_new_device_path(const struct ba_device * d) {
 	return g_variant_new_object_path(d->bluez_dbus_path);
 }
 
-static GVariant *ba_variant_new_device_sequence(const struct ba_device *d) {
+static GVariant * ba_variant_new_device_sequence(const struct ba_device * d) {
 	return g_variant_new_uint32(d->seq);
 }
 
-GVariant *ba_variant_new_device_battery(const struct ba_device *d) {
+GVariant * ba_variant_new_device_battery(const struct ba_device * d) {
 	return g_variant_new_byte(d->battery.charge);
 }
 
-static GVariant *ba_variant_new_transport_type(const struct ba_transport *t) {
+static GVariant * ba_variant_new_transport_type(const struct ba_transport * t) {
 	switch (t->profile) {
 	case BA_TRANSPORT_PROFILE_A2DP_SOURCE:
 		return g_variant_new_string(BLUEALSA_TRANSPORT_TYPE_A2DP_SOURCE);
@@ -232,9 +234,9 @@ static GVariant *ba_variant_new_transport_type(const struct ba_transport *t) {
 	return NULL;
 }
 
-static GVariant *ba_variant_new_rfcomm_features(const struct ba_rfcomm *r) {
+static GVariant * ba_variant_new_rfcomm_features(const struct ba_rfcomm * r) {
 
-	const char *strv[32];
+	const char * strv[32];
 	size_t n = 0;
 
 	if (r->sco->profile & BA_TRANSPORT_PROFILE_HFP_AG)
@@ -245,27 +247,27 @@ static GVariant *ba_variant_new_rfcomm_features(const struct ba_rfcomm *r) {
 	return g_variant_new_strv(strv, n);
 }
 
-static GVariant *ba_variant_new_pcm_mode(const struct ba_transport_pcm *pcm) {
+static GVariant * ba_variant_new_pcm_mode(const struct ba_transport_pcm * pcm) {
 	if (pcm->mode == BA_TRANSPORT_PCM_MODE_SOURCE)
 		return g_variant_new_string(BLUEALSA_PCM_MODE_SOURCE);
 	return g_variant_new_string(BLUEALSA_PCM_MODE_SINK);
 }
 
-static GVariant *ba_variant_new_pcm_running(const struct ba_transport_pcm *pcm) {
+static GVariant * ba_variant_new_pcm_running(const struct ba_transport_pcm * pcm) {
 	return g_variant_new_boolean(ba_transport_pcm_state_check_running(pcm));
 }
 
-static GVariant *ba_variant_new_pcm_format(const struct ba_transport_pcm *pcm) {
+static GVariant * ba_variant_new_pcm_format(const struct ba_transport_pcm * pcm) {
 	return g_variant_new_uint16(pcm->format);
 }
 
-static GVariant *ba_variant_new_pcm_channels(const struct ba_transport_pcm *pcm) {
+static GVariant * ba_variant_new_pcm_channels(const struct ba_transport_pcm * pcm) {
 	return g_variant_new_byte(pcm->channels);
 }
 
-static GVariant *ba_variant_new_pcm_channel_map(const struct ba_transport_pcm *pcm) {
+static GVariant * ba_variant_new_pcm_channel_map(const struct ba_transport_pcm * pcm) {
 
-	const char *strv[ARRAYSIZE(pcm->channel_map)];
+	const char * strv[ARRAYSIZE(pcm->channel_map)];
 	const size_t n = pcm->channels;
 
 	for (size_t i = 0; i < n; i++)
@@ -274,13 +276,13 @@ static GVariant *ba_variant_new_pcm_channel_map(const struct ba_transport_pcm *p
 	return g_variant_new_strv(strv, n);
 }
 
-static GVariant *ba_variant_new_pcm_rate(const struct ba_transport_pcm *pcm) {
+static GVariant * ba_variant_new_pcm_rate(const struct ba_transport_pcm * pcm) {
 	return g_variant_new_uint32(pcm->rate);
 }
 
-static GVariant *ba_variant_new_pcm_codec(const struct ba_transport_pcm *pcm) {
-	const struct ba_transport *t = pcm->t;
-	const char *codec = NULL;
+static GVariant * ba_variant_new_pcm_codec(const struct ba_transport_pcm * pcm) {
+	const struct ba_transport * t = pcm->t;
+	const char * codec = NULL;
 	if (BA_TRANSPORT_PROFILE_IS_MEDIA_A2DP(t))
 		codec = a2dp_codec_to_string(ba_transport_get_codec(t));
 #if ENABLE_ASHA
@@ -294,23 +296,23 @@ static GVariant *ba_variant_new_pcm_codec(const struct ba_transport_pcm *pcm) {
 	return NULL;
 }
 
-static GVariant *ba_variant_new_pcm_codec_config(const struct ba_transport_pcm *pcm) {
-	const struct ba_transport *t = pcm->t;
+static GVariant * ba_variant_new_pcm_codec_config(const struct ba_transport_pcm * pcm) {
+	const struct ba_transport * t = pcm->t;
 	if (BA_TRANSPORT_PROFILE_IS_MEDIA_A2DP(t))
 		return g_variant_new_fixed_byte_array(&t->media.a2dp.configuration,
-				t->media.a2dp.sep->config.caps_size);
+		                                      t->media.a2dp.sep->config.caps_size);
 	return NULL;
 }
 
-static GVariant *ba_variant_new_pcm_delay(const struct ba_transport_pcm *pcm) {
+static GVariant * ba_variant_new_pcm_delay(const struct ba_transport_pcm * pcm) {
 	return g_variant_new_uint16(ba_transport_pcm_delay_get(pcm));
 }
 
-static GVariant *ba_variant_new_pcm_client_delay(const struct ba_transport_pcm *pcm) {
+static GVariant * ba_variant_new_pcm_client_delay(const struct ba_transport_pcm * pcm) {
 	return g_variant_new_int16(pcm->client_delay_dms);
 }
 
-static GVariant *ba_variant_new_pcm_soft_volume(const struct ba_transport_pcm *pcm) {
+static GVariant * ba_variant_new_pcm_soft_volume(const struct ba_transport_pcm * pcm) {
 	return g_variant_new_boolean(pcm->soft_volume);
 }
 
@@ -318,28 +320,29 @@ static uint8_t ba_volume_pack_dbus_volume(bool muted, int value) {
 	return (muted << 7) | (((uint8_t)value) & 0x7F);
 }
 
-static GVariant *ba_variant_new_pcm_volume(const struct ba_transport_pcm *pcm) {
+static GVariant * ba_variant_new_pcm_volume(const struct ba_transport_pcm * pcm) {
 
 	const bool is_sco = BA_TRANSPORT_PROFILE_IS_SCO(pcm->t);
 	const int max = is_sco ? HFP_VOLUME_GAIN_MAX : BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX;
 	const size_t n = pcm->channels;
 
 	uint8_t volume[ARRAYSIZE(pcm->volume)];
-	for (size_t i = 0; i < n; i++)
-		volume[i] = ba_volume_pack_dbus_volume(pcm->volume[i].scale == 0,
-				ba_transport_pcm_volume_level_to_range(pcm->volume[i].level, max));
+	for (size_t i = 0; i < n; i++) {
+		const unsigned int range = ba_transport_pcm_volume_level_to_range(pcm->volume[i].level, max);
+		volume[i] = ba_volume_pack_dbus_volume(pcm->volume[i].scale == 0, range);
+	}
 
 	return g_variant_new_fixed_byte_array(volume, n);
 }
 
 struct ba_populate_data {
-	GVariantBuilder *builder;
+	GVariantBuilder * builder;
 	/* previously added value */
 	unsigned int value;
 };
 
-static error_code_t ba_populate_channels(struct a2dp_bit_mapping mapping, void *userdata) {
-	struct ba_populate_data *data = userdata;
+static error_code_t ba_populate_channels(struct a2dp_bit_mapping mapping, void * userdata) {
+	struct ba_populate_data * data = userdata;
 	if (data->value == mapping.value)
 		return ERROR_CODE_CONTINUE;
 	g_variant_builder_add_value(data->builder, g_variant_new_byte(mapping.value));
@@ -347,19 +350,19 @@ static error_code_t ba_populate_channels(struct a2dp_bit_mapping mapping, void *
 	return ERROR_CODE_CONTINUE;
 }
 
-static error_code_t ba_populate_rates(struct a2dp_bit_mapping mapping, void *userdata) {
-	struct ba_populate_data *data = userdata;
+static error_code_t ba_populate_rates(struct a2dp_bit_mapping mapping, void * userdata) {
+	struct ba_populate_data * data = userdata;
 	g_variant_builder_add_value(data->builder, g_variant_new_uint32(mapping.value));
 	return ERROR_CODE_CONTINUE;
 }
 
-static error_code_t ba_populate_channel_map(struct a2dp_bit_mapping mapping, void *userdata) {
-	struct ba_populate_data *data = userdata;
+static error_code_t ba_populate_channel_map(struct a2dp_bit_mapping mapping, void * userdata) {
+	struct ba_populate_data * data = userdata;
 
 	if (data->value == mapping.ch.channels)
 		return ERROR_CODE_CONTINUE;
 
-	const char *strv[16];
+	const char * strv[16];
 	for (size_t i = 0; i < mapping.ch.channels; i++)
 		strv[i] = ba_transport_pcm_channel_to_string(mapping.ch.map[i]);
 
@@ -370,8 +373,8 @@ static error_code_t ba_populate_channel_map(struct a2dp_bit_mapping mapping, voi
 
 /**
  * Populate dict variant builder with remote SEP properties. */
-static void ba_variant_populate_remote_sep(GVariantBuilder *props,
-		const struct a2dp_sep *sep, const struct a2dp_sep_config *remote_sep_cfg,
+static void ba_variant_populate_remote_sep(GVariantBuilder * props,
+		const struct a2dp_sep * sep, const struct a2dp_sep_config * remote_sep_cfg,
 		enum a2dp_stream stream) {
 
 	GVariantBuilder builder;
@@ -381,7 +384,7 @@ static void ba_variant_populate_remote_sep(GVariantBuilder *props,
 	sep->caps_helpers->intersect(&caps, &sep->config.capabilities);
 
 	g_variant_builder_add(props, "{sv}", "Capabilities",
-				g_variant_new_fixed_byte_array(&caps, remote_sep_cfg->caps_size));
+	                      g_variant_new_fixed_byte_array(&caps, remote_sep_cfg->caps_size));
 
 	data.value = 0;
 	g_variant_builder_init(&builder, G_VARIANT_TYPE("ay"));
@@ -400,8 +403,8 @@ static void ba_variant_populate_remote_sep(GVariantBuilder *props,
 
 }
 
-static GVariant *bluealsa_manager_get_property(const char *property,
-		GError **error, void *userdata) {
+static GVariant * bluealsa_manager_get_property(const char * property,
+		GError ** error, void * userdata) {
 	(void)error;
 	(void)userdata;
 
@@ -428,10 +431,10 @@ void bluealsa_dbus_register(void) {
 
 	debug("Registering BlueALSA D-Bus manager: %s", bluealsa_dbus_manager_path);
 
-	OrgBluealsaManager1Skeleton *ifs_manager;
+	OrgBluealsaManager1Skeleton * ifs_manager;
 	ifs_manager = org_bluealsa_manager1_skeleton_new(&vtable, NULL, NULL);
 	g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(ifs_manager),
-			config.dbus, bluealsa_dbus_manager_path, NULL);
+	                                 config.dbus, bluealsa_dbus_manager_path, NULL);
 
 	bluealsa_dbus_manager = g_dbus_object_manager_server_new(bluealsa_dbus_manager_path);
 	g_dbus_object_manager_server_set_connection(bluealsa_dbus_manager, config.dbus);
@@ -494,12 +497,12 @@ static int bluealsa_pcm_controller(
 	return G_SOURCE_CONTINUE;
 }
 
-static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
+static void bluealsa_pcm_open(GDBusMethodInvocation * inv, void * userdata) {
 
-	struct ba_transport_pcm *pcm = userdata;
+	struct ba_transport_pcm * pcm = userdata;
 	const bool is_sink = pcm->mode == BA_TRANSPORT_PCM_MODE_SINK;
 	const enum ba_transport_profile t_profile = pcm->t->profile;
-	struct ba_transport *t = pcm->t;
+	struct ba_transport * t = pcm->t;
 	int pcm_fds[4] = { -1, -1, -1, -1 };
 
 	/* Prevent two (or more) clients trying to
@@ -508,9 +511,9 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 
 	/* preliminary check whether HFP codes is selected */
 	if (BA_TRANSPORT_PROFILE_IS_SCO(pcm->t) &&
-			ba_transport_get_codec(t) == HFP_CODEC_UNDEFINED) {
-		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-				G_DBUS_ERROR_FAILED, "HFP audio codec not selected");
+	    ba_transport_get_codec(t) == HFP_CODEC_UNDEFINED) {
+		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR, G_DBUS_ERROR_FAILED,
+		                                      "HFP audio codec not selected");
 		goto fail;
 	}
 
@@ -519,23 +522,23 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	pthread_mutex_unlock(&pcm->mutex);
 
 	if (pcm_fd != -1) {
-		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-				G_DBUS_ERROR_LIMITS_EXCEEDED, "%s", strerror(EBUSY));
+		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR, G_DBUS_ERROR_LIMITS_EXCEEDED,
+		                                      "%s", strerror(EBUSY));
 		goto fail;
 	}
 
 	/* create PCM stream PIPE and PCM control socket */
 	if (pipe2(&pcm_fds[0], O_CLOEXEC) == -1 ||
-			socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, &pcm_fds[2]) == -1) {
-		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-				G_DBUS_ERROR_FAILED, "Create PIPE: %s", strerror(errno));
+	    socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, &pcm_fds[2]) == -1) {
+		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR, G_DBUS_ERROR_FAILED,
+		                                      "Create PIPE: %s", strerror(errno));
 		goto fail;
 	}
 
 	/* set our internal endpoint as non-blocking. */
 	if (fcntl(pcm_fds[is_sink ? 0 : 1], F_SETFL, O_NONBLOCK) == -1) {
-		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-				G_DBUS_ERROR_FAILED, "Setup PIPE: %s", strerror(errno));
+		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR, G_DBUS_ERROR_FAILED,
+		                                      "Setup PIPE: %s", strerror(errno));
 		goto fail;
 	}
 
@@ -552,15 +555,15 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 				BA_TRANSPORT_PROFILE_MASK_AG)) {
 
 		if (ba_transport_acquire(t) == -1) {
-			g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-					G_DBUS_ERROR_IO_ERROR, "Acquire transport: %s", strerror(errno));
+			g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR, G_DBUS_ERROR_IO_ERROR,
+			                                      "Acquire transport: %s", strerror(errno));
 			goto fail;
 		}
 
 		/* Wait until transport thread is ready to process audio. */
 		if (ba_transport_pcm_state_wait_running(pcm) == -1) {
-			g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-					G_DBUS_ERROR_IO_ERROR, "Acquire transport: %s", strerror(errno));
+			g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR, G_DBUS_ERROR_IO_ERROR,
+			                                      "Acquire transport: %s", strerror(errno));
 			goto fail;
 		}
 
@@ -574,9 +577,9 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	pcm->paused = false;
 
 	GIOChannel * ch = g_io_channel_unix_raw_new(pcm_fds[2]);
-	pcm->controller = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT,
-			G_IO_IN, bluealsa_pcm_controller, ba_transport_pcm_ref(pcm),
-			(GDestroyNotify)ba_transport_pcm_unref);
+	pcm->controller = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT, G_IO_IN,
+	                                         bluealsa_pcm_controller, ba_transport_pcm_ref(pcm),
+	                                         (GDestroyNotify)ba_transport_pcm_unref);
 	g_io_channel_unref(ch);
 
 	pthread_mutex_unlock(&pcm->mutex);
@@ -601,29 +604,29 @@ fail:
 			close(pcm_fds[i]);
 }
 
-static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) {
+static void bluealsa_pcm_get_codecs(GDBusMethodInvocation * inv, void * userdata) {
 
-	struct ba_transport_pcm *pcm = userdata;
-	const struct ba_transport *t = pcm->t;
-	const GArray *sep_cfgs = t->d->sep_configs;
+	struct ba_transport_pcm * pcm = userdata;
+	const struct ba_transport * t = pcm->t;
+	const GArray * sep_cfgs = t->d->sep_configs;
 
 	GVariantBuilder codecs;
 	g_variant_builder_init(&codecs, G_VARIANT_TYPE("a{sa{sv}}"));
 
 	if (BA_TRANSPORT_PROFILE_IS_MEDIA_A2DP(t)) {
 
-		GArray *codec_ids = g_array_sized_new(FALSE, FALSE, sizeof(uint32_t), 16);
+		GArray * codec_ids = g_array_sized_new(FALSE, FALSE, sizeof(uint32_t), 16);
 		const enum a2dp_type pcm_sep_type = t->media.a2dp.sep->config.type;
 		const enum a2dp_stream pcm_sep_stream = &t->media.pcm == pcm ? A2DP_MAIN : A2DP_BACKCHANNEL;
 
 		for (size_t i = 0; sep_cfgs != NULL && i < sep_cfgs->len; i++) {
-			const struct a2dp_sep_config *remote_sep_cfg = &ba_device_sep_cfg_array_index(sep_cfgs, i);
+			const struct a2dp_sep_config * remote_sep_cfg = &ba_device_sep_cfg_array_index(sep_cfgs, i);
 
 			/* Match complementary SEP types (i.e.: source with sink). */
 			if (pcm_sep_type == remote_sep_cfg->type)
 				continue;
 
-			const struct a2dp_sep *sep;
+			const struct a2dp_sep * sep;
 			/* Find local SEP for the remote one. */
 			if ((sep = a2dp_sep_lookup(pcm_sep_type, remote_sep_cfg->codec_id)) == NULL)
 				continue;
@@ -636,7 +639,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 			/* Check whether matched local and remote SEP support the same stream
 			 * direction as our current PCM SEP. If not, skip this codec. */
 			if (!sep->caps_helpers->has_stream(&sep->config.capabilities, pcm_sep_stream) ||
-					!sep->caps_helpers->has_stream(&remote_sep_cfg->capabilities, pcm_sep_stream))
+			    !sep->caps_helpers->has_stream(&remote_sep_cfg->capabilities, pcm_sep_stream))
 				continue;
 
 			bool duplicate = false;
@@ -659,7 +662,7 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 			ba_variant_populate_remote_sep(&props, sep, remote_sep_cfg, pcm_sep_stream);
 
 			g_variant_builder_add(&codecs, "{sa{sv}}",
-					a2dp_codec_to_string(remote_sep_cfg->codec_id), &props);
+			                      a2dp_codec_to_string(remote_sep_cfg->codec_id), &props);
 			g_variant_builder_clear(&props);
 
 			/* Remember reported codec ID. */
@@ -678,20 +681,21 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 
 		const uint8_t channels[] = { 1 };
 		g_variant_builder_add(&props, "{sv}", "Channels",
-					g_variant_new_fixed_byte_array(channels, 1));
+		                      g_variant_new_fixed_byte_array(channels, 1));
 		const uint32_t rates[] = { 16000 };
 		g_variant_builder_add(&props, "{sv}", "Rates",
-					g_variant_new_fixed_array(G_VARIANT_TYPE_UINT32, rates, 1, sizeof(*rates)));
+		                      g_variant_new_fixed_array(G_VARIANT_TYPE_UINT32, rates, 1,
+		                                                sizeof(*rates)));
 
 		g_variant_builder_add(&codecs, "{sa{sv}}",
-				asha_codec_to_string(ASHA_CODEC_G722), &props);
+		                      asha_codec_to_string(ASHA_CODEC_G722), &props);
 		g_variant_builder_clear(&props);
 
 	}
 #endif
 	else if (BA_TRANSPORT_PROFILE_IS_SCO(t)) {
 
-		const struct ba_rfcomm *t_sco_rfcomm = t->sco.rfcomm;
+		const struct ba_rfcomm * t_sco_rfcomm = t->sco.rfcomm;
 
 		/* HFP codec is selected by the AG. Because of that, HF is not aware of
 		 * AG supported codecs until the codec is actually selected. Anyway, we
@@ -725,21 +729,22 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 
 		for (size_t i = 0; i < ARRAYSIZE(sco_codecs); i++)
 			if (sco_codecs[i].is_enabled_in_config &&
-					sco_codecs[i].is_available_in_rfcomm_ag &&
-					sco_codecs[i].is_available_in_rfcomm_hf) {
+			    sco_codecs[i].is_available_in_rfcomm_ag &&
+			    sco_codecs[i].is_available_in_rfcomm_hf) {
 
 				GVariantBuilder props;
 				g_variant_builder_init(&props, G_VARIANT_TYPE_VARDICT);
 
 				const uint8_t channels[] = { 1 };
 				g_variant_builder_add(&props, "{sv}", "Channels",
-							g_variant_new_fixed_byte_array(channels, 1));
+				                      g_variant_new_fixed_byte_array(channels, 1));
 				const uint32_t rates[] = { sco_codecs[i].rate };
 				g_variant_builder_add(&props, "{sv}", "Rates",
-							g_variant_new_fixed_array(G_VARIANT_TYPE_UINT32, rates, 1, sizeof(*rates)));
+				                      g_variant_new_fixed_array(G_VARIANT_TYPE_UINT32, rates, 1,
+				                                                sizeof(*rates)));
 
 				g_variant_builder_add(&codecs, "{sa{sv}}",
-						hfp_codec_to_string(sco_codecs[i].codec_id), &props);
+				                      hfp_codec_to_string(sco_codecs[i].codec_id), &props);
 				g_variant_builder_clear(&props);
 
 			}
@@ -751,16 +756,16 @@ static void bluealsa_pcm_get_codecs(GDBusMethodInvocation *inv, void *userdata) 
 
 }
 
-static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata) {
+static void bluealsa_pcm_select_codec(GDBusMethodInvocation * inv, void * userdata) {
 
-	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
-	struct ba_transport_pcm *pcm = userdata;
-	struct ba_transport *t = pcm->t;
-	GVariantIter *properties;
-	GVariant *value;
-	const char *errmsg = NULL;
-	const char *codec_name;
-	const char *property;
+	GVariant * params = g_dbus_method_invocation_get_parameters(inv);
+	struct ba_transport_pcm * pcm = userdata;
+	struct ba_transport * t = pcm->t;
+	GVariantIter * properties;
+	GVariant * value;
+	const char * errmsg = NULL;
+	const char * codec_name;
+	const char * property;
 
 	/* Since transport can provide more than one PCM interface, i.e., source
 	 * and sink for bi-directional transports like HSP/HFP. In such case, both
@@ -778,14 +783,13 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
 
 		if (strcmp(property, "Configuration") == 0 &&
-				g_variant_validate_value(value, G_VARIANT_TYPE_BYTESTRING, property)) {
+		    g_variant_validate_value(value, G_VARIANT_TYPE_BYTESTRING, property)) {
 
-			const void *data = g_variant_get_fixed_array(value,
-					&a2dp_configuration_size, sizeof(char));
+			const void * data = g_variant_get_fixed_array(value, &a2dp_configuration_size, sizeof(char));
 
 			if (a2dp_configuration_size > sizeof(a2dp_configuration)) {
 				warn("Configuration blob size exceeded: %zu > %zu",
-						a2dp_configuration_size, sizeof(a2dp_configuration));
+				     a2dp_configuration_size, sizeof(a2dp_configuration));
 				a2dp_configuration_size = sizeof(a2dp_configuration);
 			}
 
@@ -793,15 +797,15 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 
 		}
 		else if (strcmp(property, "Channels") == 0 &&
-				g_variant_validate_value(value, G_VARIANT_TYPE_BYTE, property)) {
+		         g_variant_validate_value(value, G_VARIANT_TYPE_BYTE, property)) {
 			channels = g_variant_get_byte(value);
 		}
 		else if (strcmp(property, "Rate") == 0 &&
-				g_variant_validate_value(value, G_VARIANT_TYPE_UINT32, property)) {
+		         g_variant_validate_value(value, G_VARIANT_TYPE_UINT32, property)) {
 			rate = g_variant_get_uint32(value);
 		}
 		else if (strcmp(property, "NonConformant") == 0 &&
-				g_variant_validate_value(value, G_VARIANT_TYPE_BOOLEAN, property)) {
+		         g_variant_validate_value(value, G_VARIANT_TYPE_BOOLEAN, property)) {
 			conformance_check = !g_variant_get_boolean(value);
 		}
 
@@ -819,12 +823,12 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 		uint32_t codec_id = a2dp_codec_from_string(codec_name);
 		const enum a2dp_type pcm_sep_type = t->media.a2dp.sep->config.type;
 		const enum a2dp_stream pcm_sep_stream = &t->media.pcm == pcm ? A2DP_MAIN : A2DP_BACKCHANNEL;
-		struct a2dp_sep_config *remote_sep_cfg = NULL;
-		const GArray *sep_cfgs = t->d->sep_configs;
+		struct a2dp_sep_config * remote_sep_cfg = NULL;
+		const GArray * sep_cfgs = t->d->sep_configs;
 
 		for (size_t i = 0; i < sep_cfgs->len; i++)
 			if (ba_device_sep_cfg_array_index(sep_cfgs, i).type != pcm_sep_type &&
-					ba_device_sep_cfg_array_index(sep_cfgs, i).codec_id == codec_id) {
+			    ba_device_sep_cfg_array_index(sep_cfgs, i).codec_id == codec_id) {
 				remote_sep_cfg = &ba_device_sep_cfg_array_index(sep_cfgs, i);
 				break;
 			}
@@ -835,7 +839,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 			goto fail;
 		}
 
-		const struct a2dp_sep *sep;
+		const struct a2dp_sep * sep;
 		if ((sep = a2dp_sep_lookup(pcm_sep_type, codec_id)) == NULL) {
 			errmsg = "SEP codec not supported";
 			goto fail;
@@ -864,14 +868,15 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 
 		if (a2dp_configuration_size == 0) {
 			/* Setup default configuration if it was not provided. */
-			if (a2dp_select_configuration(sep, &a2dp_configuration, sep->config.caps_size) != ERROR_CODE_OK)
+			if (a2dp_select_configuration(sep, &a2dp_configuration,
+			                              sep->config.caps_size) != ERROR_CODE_OK)
 				goto fail;
 		}
 		else if (conformance_check) {
 			error_code_t rv;
 			/* Validate provided configuration. */
 			if ((rv = a2dp_check_configuration(sep, &a2dp_configuration,
-						a2dp_configuration_size)) != ERROR_CODE_OK) {
+			                                   a2dp_configuration_size)) != ERROR_CODE_OK) {
 				errmsg = error_code_strerror(rv);
 				goto fail;
 			}
@@ -907,28 +912,27 @@ fail:
 	if (errmsg == NULL)
 		errmsg = strerror(errno);
 	error("Couldn't select codec: %s: %s", codec_name, errmsg);
-	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-			G_DBUS_ERROR_FAILED, "%s", errmsg);
+	g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR, G_DBUS_ERROR_FAILED, "%s", errmsg);
 
 final:
 	pthread_mutex_unlock(&t->codec_select_client_mtx);
 	g_variant_iter_free(properties);
 }
 
-static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv, void *userdata) {
+static void bluealsa_rfcomm_open(GDBusMethodInvocation * inv, void * userdata) {
 
-	struct ba_rfcomm *r = userdata;
+	struct ba_rfcomm * r = userdata;
 	int fds[2] = { -1, -1 };
 
 	if (r->handler_fd != -1) {
-		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-				G_DBUS_ERROR_LIMITS_EXCEEDED, "%s", strerror(EBUSY));
+		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR, G_DBUS_ERROR_LIMITS_EXCEEDED,
+		                                      "%s", strerror(EBUSY));
 		return;
 	}
 
 	if (socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, fds) == -1) {
-		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR,
-				G_DBUS_ERROR_FAILED, "Create socket: %s", strerror(errno));
+		g_dbus_method_invocation_return_error(inv, G_DBUS_ERROR, G_DBUS_ERROR_FAILED,
+		                                      "Create socket: %s", strerror(errno));
 		return;
 	}
 
@@ -941,12 +945,12 @@ static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv, void *userdata) {
 	g_object_unref(fd_list);
 }
 
-static GVariant *bluealsa_pcm_get_property(const char *property,
-		GError **error, void *userdata) {
+static GVariant * bluealsa_pcm_get_property(const char * property,
+		GError ** error, void * userdata) {
 
-	struct ba_transport_pcm *pcm = userdata;
-	struct ba_device *d = pcm->t->d;
-	GVariant *value;
+	struct ba_transport_pcm * pcm = userdata;
+	struct ba_device * d = pcm->t->d;
+	GVariant * value;
 
 	if (strcmp(property, "Device") == 0)
 		return ba_variant_new_device_path(d);
@@ -991,15 +995,15 @@ static GVariant *bluealsa_pcm_get_property(const char *property,
 unavailable:
 	if (error != NULL)
 		*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
-				"No such property '%s'", property);
+		                     "No such property '%s'", property);
 	return NULL;
 }
 
-static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
-		GError **error, void *userdata) {
+static bool bluealsa_pcm_set_property(const char * property, GVariant * value,
+		GError ** error, void * userdata) {
 
-	struct ba_transport_pcm *pcm = userdata;
-	struct ba_transport *t = pcm->t;
+	struct ba_transport_pcm * pcm = userdata;
+	struct ba_transport * t = pcm->t;
 
 	const bool is_sco = BA_TRANSPORT_PROFILE_IS_SCO(t);
 	const int volume_max = is_sco ? HFP_VOLUME_GAIN_MAX : BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX;
@@ -1038,11 +1042,11 @@ static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
 	if (strcmp(property, "Volume") == 0) {
 
 		size_t channels = 0;
-		const uint8_t *volume = g_variant_get_fixed_array(value, &channels, sizeof(uint8_t));
+		const uint8_t * volume = g_variant_get_fixed_array(value, &channels, sizeof(uint8_t));
 
 		if (channels != pcm->channels) {
 			*error = g_error_new(G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
-					"Invalid number of channels: %zu != %u", channels, pcm->channels);
+			                     "Invalid number of channels: %zu != %u", channels, pcm->channels);
 			return false;
 		}
 
@@ -1054,7 +1058,7 @@ static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
 			const int level = ba_transport_pcm_volume_range_to_level(volume[i] & 0x7F, volume_max);
 
 			debug("Setting volume [ch=%zu]: %u [%.2f dB] [%c]",
-					i, volume[i] & 0x7F, 0.01 * level, muted ? 'M' : ' ');
+			      i, volume[i] & 0x7F, 0.01 * level, muted ? 'M' : ' ');
 			ba_transport_pcm_volume_set(&pcm->volume[i], &level, &muted, NULL);
 
 		}
@@ -1094,12 +1098,12 @@ error_code_t bluealsa_dbus_pcm_register(struct ba_transport_pcm * pcm) {
 		return ERROR_SYSTEM(EINVAL);
 
 	g_autoptr(OrgBluealsaPcm1Skeleton) ifs_pcm;
-	if ((ifs_pcm = org_bluealsa_pcm1_skeleton_new(&vtable,
-					pcm, (GDestroyNotify)ba_transport_pcm_unref)) == NULL)
+	if ((ifs_pcm = org_bluealsa_pcm1_skeleton_new(&vtable, pcm,
+	                                              (GDestroyNotify)ba_transport_pcm_unref)) == NULL)
 		return ERROR_SYSTEM(EINVAL);
 
 	g_dbus_interface_skeleton_set_flags(G_DBUS_INTERFACE_SKELETON(ifs_pcm),
-			G_DBUS_INTERFACE_SKELETON_FLAGS_HANDLE_METHOD_INVOCATIONS_IN_THREAD);
+	                                    G_DBUS_INTERFACE_SKELETON_FLAGS_HANDLE_METHOD_INVOCATIONS_IN_THREAD);
 
 	ba_transport_pcm_ref(pcm);
 
@@ -1128,7 +1132,8 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm * pcm, unsigned int mask) 
 	if (mask & BA_DBUS_PCM_UPDATE_CODEC)
 		g_variant_builder_add(&props, "{sv}", "Codec", ba_variant_new_pcm_codec(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_CODEC_CONFIG)
-		g_variant_builder_add(&props, "{sv}", "CodecConfiguration", ba_variant_new_pcm_codec_config(pcm));
+		g_variant_builder_add(&props, "{sv}", "CodecConfiguration",
+		                      ba_variant_new_pcm_codec_config(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_DELAY)
 		g_variant_builder_add(&props, "{sv}", "Delay", ba_variant_new_pcm_delay(pcm));
 	if (mask & BA_DBUS_PCM_UPDATE_CLIENT_DELAY)
@@ -1138,8 +1143,8 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm * pcm, unsigned int mask) 
 	if (mask & BA_DBUS_PCM_UPDATE_VOLUME)
 		g_variant_builder_add(&props, "{sv}", "Volume", ba_variant_new_pcm_volume(pcm));
 
-	g_dbus_connection_emit_properties_changed(config.dbus, pcm->ba_dbus_path,
-			BLUEALSA_IFACE_PCM, g_variant_builder_end(&props), NULL, NULL);
+	g_dbus_connection_emit_properties_changed(config.dbus, pcm->ba_dbus_path, BLUEALSA_IFACE_PCM,
+	                                          g_variant_builder_end(&props), NULL, NULL);
 
 }
 
@@ -1150,13 +1155,13 @@ void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm * pcm) {
 	pcm->ba_dbus_exported = false;
 }
 
-static GVariant *bluealsa_rfcomm_get_property(const char *property,
-		GError **error, void *userdata) {
+static GVariant * bluealsa_rfcomm_get_property(const char * property,
+		GError ** error, void * userdata) {
 	(void)error;
 
-	struct ba_rfcomm *r = userdata;
-	struct ba_transport *t = r->sco;
-	struct ba_device *d = t->d;
+	struct ba_rfcomm * r = userdata;
+	struct ba_transport * t = r->sco;
+	struct ba_device * d = t->d;
 
 	if (strcmp(property, "Transport") == 0)
 		return ba_variant_new_transport_type(t);
@@ -1209,8 +1214,8 @@ void bluealsa_dbus_rfcomm_update(struct ba_rfcomm * r, unsigned int mask) {
 	if (mask & BA_DBUS_RFCOMM_UPDATE_BATTERY)
 		g_variant_builder_add(&props, "{sv}", "Battery", ba_variant_new_device_battery(r->sco->d));
 
-	g_dbus_connection_emit_properties_changed(config.dbus, r->ba_dbus_path,
-			BLUEALSA_IFACE_RFCOMM, g_variant_builder_end(&props), NULL, NULL);
+	g_dbus_connection_emit_properties_changed(config.dbus, r->ba_dbus_path, BLUEALSA_IFACE_RFCOMM,
+	                                          g_variant_builder_end(&props), NULL, NULL);
 
 }
 

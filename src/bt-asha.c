@@ -12,28 +12,28 @@
 
 #include <endian.h>
 #include <errno.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <pthread.h>
 #include <unistd.h>
 
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
-#include <glib-object.h>
 #include <glib.h>
+#include <glib-object.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 #include <bluetooth/l2cap.h>
 
 #include "ba-adapter.h"
+#include "ba-config.h"
 #include "ba-device.h"
 #include "ba-transport.h"
 #include "ba-transport-pcm.h"
-#include "ba-config.h"
 #include "bluez-iface.h"
 #include "bt-advertising.h"
 #include "bt-gatt.h"
@@ -202,7 +202,9 @@ static error_code_t asha_setup_connection_dispatcher(
 	struct sockaddr_l2 addr = {
 		.l2_family = AF_BLUETOOTH,
 		.l2_bdaddr = *BDADDR_ANY,
-		.l2_bdaddr_type = BDADDR_LE_PUBLIC };
+		.l2_bdaddr_type = BDADDR_LE_PUBLIC,
+	};
+
 	/* Request dynamic PSM allocation for connection dispatcher. */
 	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
 		return close(fd), ERROR_SYSTEM(errno);
@@ -217,8 +219,8 @@ static error_code_t asha_setup_connection_dispatcher(
 
 	g_autoptr(GIOChannel) ch = g_io_channel_unix_raw_new(fd);
 	/* Attach connection dispatcher to the default main context. */
-	asha->dispatcher = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT,
-			G_IO_IN, asha_connection_dispatcher, asha, NULL);
+	asha->dispatcher = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT, G_IO_IN,
+	                                          asha_connection_dispatcher, asha, NULL);
 	asha->psm = addr.l2_psm;
 
 	debug("Created ASHA connection dispatcher [PSM=%#x]: %d", addr.l2_psm, fd);
@@ -257,7 +259,7 @@ static error_code_t asha_bind_transport(
 	struct ba_device * d;
 	struct ba_adapter * a = asha->a;
 	if ((d = ba_device_lookup(a, &addr)) == NULL &&
-			(d = ba_device_new(a, &addr)) == NULL) {
+	    (d = ba_device_new(a, &addr)) == NULL) {
 		error("Couldn't create new device: %s", device);
 		return ERROR_SYSTEM(errno);
 	}
@@ -268,7 +270,7 @@ static error_code_t asha_bind_transport(
 	struct ba_transport * t;
 	if ((t = ba_transport_lookup(d, path)) == NULL)
 		t = ba_transport_new_asha(d, BA_TRANSPORT_PROFILE_ASHA_SINK, ":0",
-				path, config.asha.id);
+		                          path, config.asha.id);
 	ba_device_unref(d);
 
 	if (t == NULL) {
@@ -310,7 +312,7 @@ static void asha_status_write(BluetoothASHA * asha, int8_t status) {
 	size_t tmp;
 	g_autoptr(GError) err = NULL;
 	if (g_io_channel_write_chars(asha->chr_status_notify_channel, (void *)&status,
-				sizeof(status), &tmp, &err) != G_IO_STATUS_NORMAL) {
+	                             sizeof(status), &tmp, &err) != G_IO_STATUS_NORMAL) {
 		error("Couldn't write ASHA status notification: %s", err->message);
 	}
 
@@ -323,8 +325,7 @@ static bool asha_characteristic_props_read_value(
 
 	error_code_t rc;
 	if ((rc = asha_bind_transport(asha, inv)) != ERROR_CODE_OK) {
-		g_dbus_method_invocation_return_dbus_error(inv, BLUEZ_ERROR_FAILED,
-				error_code_strerror(rc));
+		g_dbus_method_invocation_return_dbus_error(inv, BLUEZ_ERROR_FAILED, error_code_strerror(rc));
 		return false;
 	}
 
@@ -359,7 +360,7 @@ static int asha_ctrl_read(
 			asha_ctrl_start_t start;
 			asha_ctrl_status_t status;
 		};
-	} __attribute__((packed)) packet = { 0 };
+	} __attribute__ ((packed)) packet = { 0 };
 	size_t len;
 
 	g_autoptr(GError) err = NULL;
@@ -415,8 +416,7 @@ static bool asha_characteristic_ctrl_acquire_write(
 
 	error_code_t rc;
 	if ((rc = asha_bind_transport(asha, inv)) != ERROR_CODE_OK) {
-		g_dbus_method_invocation_return_dbus_error(inv, BLUEZ_ERROR_FAILED,
-				error_code_strerror(rc));
+		g_dbus_method_invocation_return_dbus_error(inv, BLUEZ_ERROR_FAILED, error_code_strerror(rc));
 		return false;
 	}
 
@@ -428,8 +428,8 @@ static bool asha_characteristic_ctrl_acquire_write(
 	}
 
 	g_autoptr(GIOChannel) ch = g_io_channel_unix_raw_new(fds[0]);
-	asha->chr_ctrl_write_watch = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT,
-			G_IO_IN, asha_ctrl_read, asha, NULL);
+	asha->chr_ctrl_write_watch = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT, G_IO_IN,
+	                                                    asha_ctrl_read, asha, NULL);
 
 	GVariant * params = g_variant_new("(hq)", 0, chr_get_mtu(inv));
 	GUnixFDList * fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
@@ -469,8 +469,7 @@ static bool asha_characteristic_status_acquire_notify(
 
 	error_code_t rc;
 	if ((rc = asha_bind_transport(asha, inv)) != ERROR_CODE_OK) {
-		g_dbus_method_invocation_return_dbus_error(inv, BLUEZ_ERROR_FAILED,
-				error_code_strerror(rc));
+		g_dbus_method_invocation_return_dbus_error(inv, BLUEZ_ERROR_FAILED, error_code_strerror(rc));
 		return false;
 	}
 
@@ -485,7 +484,8 @@ static bool asha_characteristic_status_acquire_notify(
 	/* Setup IO watch for checking HUP condition on the socket. HUP means
 	 * that the client does not want to receive notifications anymore. */
 	asha->chr_status_notify_watch_hup = g_io_create_watch_full(asha->chr_status_notify_channel,
-			G_PRIORITY_DEFAULT, G_IO_HUP, asha_status_hup, asha, NULL);
+	                                                           G_PRIORITY_DEFAULT, G_IO_HUP,
+	                                                           asha_status_hup, asha, NULL);
 
 	GVariant * params = g_variant_new("(hq)", 0, chr_get_mtu(inv));
 	GUnixFDList * fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
@@ -501,13 +501,11 @@ static bool asha_characteristic_volume_read_value(
 
 	error_code_t rc;
 	if ((rc = asha_bind_transport(asha, inv)) != ERROR_CODE_OK) {
-		g_dbus_method_invocation_return_dbus_error(inv, BLUEZ_ERROR_FAILED,
-				error_code_strerror(rc));
+		g_dbus_method_invocation_return_dbus_error(inv, BLUEZ_ERROR_FAILED, error_code_strerror(rc));
 		return false;
 	}
 
-	int volume = ba_transport_pcm_volume_level_to_range(
-			asha->t->media.pcm.volume[0].level, 128);
+	int volume = ba_transport_pcm_volume_level_to_range(asha->t->media.pcm.volume[0].level, 128);
 	const int8_t value = volume - 128;
 	GVariant * rv = g_variant_new_fixed_byte_array(&value, sizeof(value));
 	g_dbus_method_invocation_return_value(inv, g_variant_new_tuple(&rv, 1));
@@ -556,8 +554,7 @@ static bool asha_characteristic_volume_acquire_write(
 
 	error_code_t rc;
 	if ((rc = asha_bind_transport(asha, inv)) != ERROR_CODE_OK) {
-		g_dbus_method_invocation_return_dbus_error(inv, BLUEZ_ERROR_FAILED,
-				error_code_strerror(rc));
+		g_dbus_method_invocation_return_dbus_error(inv, BLUEZ_ERROR_FAILED, error_code_strerror(rc));
 		return false;
 	}
 
@@ -569,8 +566,8 @@ static bool asha_characteristic_volume_acquire_write(
 	}
 
 	g_autoptr(GIOChannel) ch = g_io_channel_unix_raw_new(fds[0]);
-	asha->chr_volume_write_watch = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT,
-			G_IO_IN, asha_volume_read, asha, NULL);
+	asha->chr_volume_write_watch = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT, G_IO_IN,
+	                                                      asha_volume_read, asha, NULL);
 
 	GVariant * params = g_variant_new("(hq)", 0, chr_get_mtu(inv));
 	GUnixFDList * fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
@@ -586,8 +583,7 @@ static bool asha_characteristic_psm_read_value(
 
 	error_code_t rc;
 	if ((rc = asha_bind_transport(asha, inv)) != ERROR_CODE_OK) {
-		g_dbus_method_invocation_return_dbus_error(inv, BLUEZ_ERROR_FAILED,
-				error_code_strerror(rc));
+		g_dbus_method_invocation_return_dbus_error(inv, BLUEZ_ERROR_FAILED, error_code_strerror(rc));
 		return false;
 	}
 
@@ -636,46 +632,51 @@ BluetoothASHA * bluetooth_asha_new(
 	g_autoptr(BluetoothGATTCharacteristic) chr_props;
 	chr_props = bluetooth_gatt_characteristic_new("/props", BT_UUID_ASHA_PROPS);
 	bluetooth_gatt_application_add_service_characteristic(asha->app, srv, chr_props);
-	bluetooth_gatt_characteristic_set_flags(chr_props,
-			(const char * const[]){"read", NULL});
+	bluetooth_gatt_characteristic_set_flags(chr_props, (const char * const[]) { "read", NULL });
 	bluetooth_gatt_characteristic_set_read_callback(chr_props,
-			asha_characteristic_props_read_value, asha);
+	                                                asha_characteristic_props_read_value, asha);
 
 	g_autoptr(BluetoothGATTCharacteristic) chr_ctrl;
 	chr_ctrl = bluetooth_gatt_characteristic_new("/ctrl", BT_UUID_ASHA_CTRL);
 	bluetooth_gatt_application_add_service_characteristic(asha->app, srv, chr_ctrl);
 	bluetooth_gatt_characteristic_set_flags(chr_ctrl,
-			(const char * const[]){"write", "write-without-response", NULL});
+	                                        (const char * const[]) { "write",
+	                                                                 "write-without-response",
+	                                                                 NULL });
 	bluetooth_gatt_characteristic_set_acquire_write_callback(chr_ctrl,
-			asha_characteristic_ctrl_acquire_write, asha);
+	                                                         asha_characteristic_ctrl_acquire_write,
+	                                                         asha);
 
 	g_autoptr(BluetoothGATTCharacteristic) chr_status;
 	chr_status = bluetooth_gatt_characteristic_new("/status", BT_UUID_ASHA_STATUS);
 	bluetooth_gatt_application_add_service_characteristic(asha->app, srv, chr_status);
 	bluetooth_gatt_characteristic_set_flags(chr_status,
-			(const char * const[]){"read", "notify", NULL});
+	                                        (const char * const[]) { "read", "notify", NULL });
 	bluetooth_gatt_characteristic_set_read_callback(chr_status,
-			asha_characteristic_status_read_value, asha);
+	                                                asha_characteristic_status_read_value, asha);
 	bluetooth_gatt_characteristic_set_acquire_notify_callback(chr_status,
-			asha_characteristic_status_acquire_notify, asha);
+	                                                          asha_characteristic_status_acquire_notify,
+	                                                          asha);
 
 	g_autoptr(BluetoothGATTCharacteristic) chr_volume;
 	chr_volume = bluetooth_gatt_characteristic_new("/volume", BT_UUID_ASHA_VOLUME);
 	bluetooth_gatt_application_add_service_characteristic(asha->app, srv, chr_volume);
 	bluetooth_gatt_characteristic_set_flags(chr_volume,
-			(const char * const[]){"read", "write", "write-without-response", NULL});
+	                                        (const char * const[]) { "read", "write",
+	                                                                 "write-without-response",
+	                                                                 NULL });
 	bluetooth_gatt_characteristic_set_read_callback(chr_volume,
-			asha_characteristic_volume_read_value, asha);
+	                                                asha_characteristic_volume_read_value, asha);
 	bluetooth_gatt_characteristic_set_acquire_write_callback(chr_volume,
-			asha_characteristic_volume_acquire_write, asha);
+	                                                         asha_characteristic_volume_acquire_write,
+	                                                         asha);
 
 	g_autoptr(BluetoothGATTCharacteristic) chr_psm;
 	chr_psm = bluetooth_gatt_characteristic_new("/psm", BT_UUID_ASHA_PSM);
 	bluetooth_gatt_application_add_service_characteristic(asha->app, srv, chr_psm);
-	bluetooth_gatt_characteristic_set_flags(chr_psm,
-			(const char * const[]){"read", NULL});
+	bluetooth_gatt_characteristic_set_flags(chr_psm, (const char * const[]) { "read", NULL });
 	bluetooth_gatt_characteristic_set_read_callback(chr_psm,
-			asha_characteristic_psm_read_value, asha);
+	                                                asha_characteristic_psm_read_value, asha);
 
 	/* Setup connection dispatcher for incoming ASHA audio links. */
 	if (asha_setup_connection_dispatcher(asha) != ERROR_CODE_OK) {
@@ -686,17 +687,16 @@ BluetoothASHA * bluetooth_asha_new(
 	if (config.asha.advertise) {
 		char adv_path[256];
 		snprintf(adv_path, sizeof(adv_path), "%s/adv", path);
-		asha->adv = bluetooth_advertising_new(
-				bluetooth_gatt_application_get_object_manager_server(asha->app),
-				adv_path, BT_UUID_ASHA, config.asha.name);
+		asha->adv =
+			bluetooth_advertising_new(bluetooth_gatt_application_get_object_manager_server(asha->app),
+			                          adv_path, BT_UUID_ASHA, config.asha.name);
 		asha_service_data_payload_t payload = {
 			.version = ASHA_VERSION_1_0,
 			.caps = { .side = config.asha.side, .binaural = config.asha.binaural } };
 		/* ASHA LE advertisement does not send whole ID but only the most
 		 * significant 4 bytes, hence we need to copy only that part. */
 		memcpy(payload.id, &config.asha.id, sizeof(payload.id));
-		bluetooth_advertising_set_service_data(asha->adv,
-				&payload, sizeof(payload));
+		bluetooth_advertising_set_service_data(asha->adv, &payload, sizeof(payload));
 	}
 
 	bluetooth_gatt_application_set_connection(asha->app, config.dbus);

@@ -24,11 +24,11 @@
  * @param invocation D-Bus method invocation structure.
  * @param userdata Data to pass to the handler function.
  * @return On success this function returns true. */
-static bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher *dispatchers,
-		const char *sender, const char *path, const char *interface, const char *method,
-		GDBusMethodInvocation *invocation, void *userdata) {
+static bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher * dispatchers,
+		const char * sender, const char * path, const char * interface, const char * method,
+		GDBusMethodInvocation * invocation, void * userdata) {
 
-	const GDBusMethodCallDispatcher *dispatcher;
+	const GDBusMethodCallDispatcher * dispatcher;
 	for (dispatcher = dispatchers; dispatcher->handler != NULL; dispatcher++) {
 
 		if (dispatcher->sender != NULL && strcmp(dispatcher->sender, sender) != 0)
@@ -47,33 +47,33 @@ static bool g_dbus_dispatch_method_call(const GDBusMethodCallDispatcher *dispatc
 	}
 
 	/* make sure that we will not leak the invocation object */
-	g_dbus_method_invocation_return_error(invocation, G_DBUS_ERROR,
-			G_DBUS_ERROR_UNKNOWN_METHOD, "Unknown method: %s.%s()", interface, method);
+	g_dbus_method_invocation_return_error(invocation, G_DBUS_ERROR, G_DBUS_ERROR_UNKNOWN_METHOD,
+	                                      "Unknown method: %s.%s()", interface, method);
 	return false;
 }
 
-static void interface_skeleton_ex_method_call(G_GNUC_UNUSED GDBusConnection *conn,
-		const char *sender, const char *path, const char *interface, const char *method,
-		G_GNUC_UNUSED GVariant *params, GDBusMethodInvocation *invocation, void *userdata) {
-	GDBusInterfaceSkeletonEx *iface = userdata;
-	if (!g_dbus_dispatch_method_call(iface->vtable.dispatchers,
-				sender, path, interface, method, invocation, iface->userdata))
+static void interface_skeleton_ex_method_call(G_GNUC_UNUSED GDBusConnection * conn,
+		const char * sender, const char * path, const char * interface, const char * method,
+		G_GNUC_UNUSED GVariant * params, GDBusMethodInvocation * invocation, void * userdata) {
+	GDBusInterfaceSkeletonEx * iface = userdata;
+	if (!g_dbus_dispatch_method_call(iface->vtable.dispatchers, sender, path, interface, method,
+	                                 invocation, iface->userdata))
 		error("Couldn't dispatch D-Bus method call: %s.%s()", interface, method);
 }
 
-static GVariant *interface_skeleton_ex_get_property(G_GNUC_UNUSED GDBusConnection *conn,
-		G_GNUC_UNUSED const char *sender, G_GNUC_UNUSED const char *path,
-		G_GNUC_UNUSED const char *interface, const char *property,
-		GError **error, void *userdata) {
-	GDBusInterfaceSkeletonEx *iface = userdata;
+static GVariant * interface_skeleton_ex_get_property(G_GNUC_UNUSED GDBusConnection * conn,
+		G_GNUC_UNUSED const char * sender, G_GNUC_UNUSED const char * path,
+		G_GNUC_UNUSED const char * interface, const char * property,
+		GError ** error, void * userdata) {
+	GDBusInterfaceSkeletonEx * iface = userdata;
 	return iface->vtable.get_property(property, error, iface->userdata);
 }
 
-static gboolean interface_skeleton_ex_set_property(G_GNUC_UNUSED GDBusConnection *conn,
-		G_GNUC_UNUSED const char *sender, G_GNUC_UNUSED const char *path,
-		G_GNUC_UNUSED const char *interface, const char *property, GVariant *value,
-		GError **error, void *userdata) {
-	GDBusInterfaceSkeletonEx *iface = userdata;
+static gboolean interface_skeleton_ex_set_property(G_GNUC_UNUSED GDBusConnection * conn,
+		G_GNUC_UNUSED const char * sender, G_GNUC_UNUSED const char * path,
+		G_GNUC_UNUSED const char * interface, const char * property, GVariant * value,
+		GError ** error, void * userdata) {
+	GDBusInterfaceSkeletonEx * iface = userdata;
 	return iface->vtable.set_property(property, value, error, iface->userdata);
 }
 
@@ -83,20 +83,20 @@ static const GDBusInterfaceVTable interface_skeleton_ex_vtable = {
 	.set_property = interface_skeleton_ex_set_property,
 };
 
-GDBusInterfaceInfo *g_dbus_interface_skeleton_ex_class_get_info(
-		GDBusInterfaceSkeleton *interface_skeleton) {
-	GDBusInterfaceSkeletonEx *iface = (GDBusInterfaceSkeletonEx *)interface_skeleton;
+GDBusInterfaceInfo * g_dbus_interface_skeleton_ex_class_get_info(
+		GDBusInterfaceSkeleton * interface_skeleton) {
+	GDBusInterfaceSkeletonEx * iface = (GDBusInterfaceSkeletonEx *)interface_skeleton;
 	return iface->interface_info;
 }
 
-GDBusInterfaceVTable *g_dbus_interface_skeleton_ex_class_get_vtable(
-		G_GNUC_UNUSED GDBusInterfaceSkeleton *interface_skeleton) {
+GDBusInterfaceVTable * g_dbus_interface_skeleton_ex_class_get_vtable(
+		G_GNUC_UNUSED GDBusInterfaceSkeleton * interface_skeleton) {
 	return (GDBusInterfaceVTable *)&interface_skeleton_ex_vtable;
 }
 
-GVariant *g_dbus_interface_skeleton_ex_class_get_properties(
-		GDBusInterfaceSkeleton *interface_skeleton) {
-	GDBusInterfaceSkeletonEx *iface = (GDBusInterfaceSkeletonEx *)interface_skeleton;
+GVariant * g_dbus_interface_skeleton_ex_class_get_properties(
+		GDBusInterfaceSkeleton * interface_skeleton) {
+	GDBusInterfaceSkeletonEx * iface = (GDBusInterfaceSkeletonEx *)interface_skeleton;
 
 	if (iface->vtable.get_properties != NULL)
 		/* use custom properties getter if provided */
@@ -105,9 +105,9 @@ GVariant *g_dbus_interface_skeleton_ex_class_get_properties(
 	GVariantBuilder props;
 	g_variant_builder_init(&props, G_VARIANT_TYPE_VARDICT);
 
-	GVariant *v;
-	GDBusPropertyInfo **pp = iface->interface_info->properties;
-	for (const GDBusPropertyInfo *p = *pp; *pp != NULL; p = *(++pp))
+	GVariant * v;
+	GDBusPropertyInfo ** pp = iface->interface_info->properties;
+	for (const GDBusPropertyInfo * p = *pp; *pp != NULL; p = *(++pp))
 		if ((v = iface->vtable.get_property(p->name, NULL, iface->userdata)) != NULL)
 			g_variant_builder_add(&props, "{sv}", p->name, v);
 
@@ -126,10 +126,10 @@ GVariant *g_dbus_interface_skeleton_ex_class_get_properties(
  * @return On success, this function returns newly allocated GIO interface
  *   skeleton object, which shall be freed with g_object_unref(). If error
  *   occurs, NULL is returned. */
-void *g_dbus_interface_skeleton_ex_new(GType interface_skeleton_type,
-		GDBusInterfaceInfo *interface_info, const GDBusInterfaceSkeletonVTable *vtable,
-		void *userdata, GDestroyNotify userdata_free_func) {
-	GDBusInterfaceSkeletonEx *iface;
+void * g_dbus_interface_skeleton_ex_new(GType interface_skeleton_type,
+		GDBusInterfaceInfo * interface_info, const GDBusInterfaceSkeletonVTable * vtable,
+		void * userdata, GDestroyNotify userdata_free_func) {
+	GDBusInterfaceSkeletonEx * iface;
 	if ((iface = g_object_new(interface_skeleton_type, NULL)) == NULL)
 		return NULL;
 	g_object_set_data_full(G_OBJECT(iface), "_ud", userdata, userdata_free_func);
@@ -149,17 +149,16 @@ void *g_dbus_interface_skeleton_ex_new(GType interface_skeleton_type,
  * @param invalidated The array variant with invalidated properties.
  * @param error NULL GError pointer.
  * @return On success this function returns true. */
-bool g_dbus_connection_emit_properties_changed(GDBusConnection *conn,
-		const char *path, const char *interface, GVariant *changed,
-		GVariant *invalidated, GError **error) {
+bool g_dbus_connection_emit_properties_changed(GDBusConnection * conn,
+		const char * path, const char * interface, GVariant * changed,
+		GVariant * invalidated, GError ** error) {
 	if (changed == NULL)
 		changed = g_variant_new("a{sv}", NULL);
 	if (invalidated == NULL)
 		invalidated = g_variant_new("as", NULL);
-	return g_dbus_connection_emit_signal(conn, NULL, path,
-			DBUS_IFACE_PROPERTIES, "PropertiesChanged",
-			g_variant_new("(s@a{sv}@as)", interface, changed, invalidated),
-			error);
+	GVariant * params = g_variant_new("(s@a{sv}@as)", interface, changed, invalidated);
+	return g_dbus_connection_emit_signal(conn, NULL, path, DBUS_IFACE_PROPERTIES,
+	                                     "PropertiesChanged", params, error);
 }
 
 /**
@@ -175,12 +174,13 @@ char * g_dbus_get_unique_name_sync(GDBusConnection * conn,
 
 	g_autoptr(GDBusMessage) msg;
 	msg = g_dbus_message_new_method_call(service, "/",
-			DBUS_IFACE_INTROSPECTABLE, "Introspect");
+	                                     DBUS_IFACE_INTROSPECTABLE, "Introspect");
 
 	g_autoptr(GDBusMessage) rep;
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, 1000, NULL, NULL, NULL)) == NULL ||
-			g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR)
+	                                                          G_DBUS_SEND_MESSAGE_FLAGS_NONE, 1000,
+	                                                          NULL, NULL, NULL)) == NULL ||
+	    g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR)
 		return NULL;
 
 	return g_strdup(g_dbus_message_get_sender(rep));
@@ -201,12 +201,13 @@ GVariantIter * g_dbus_get_managed_objects_sync(GDBusConnection * conn,
 
 	g_autoptr(GDBusMessage) msg;
 	msg = g_dbus_message_new_method_call(service, path,
-			DBUS_IFACE_OBJECT_MANAGER, "GetManagedObjects");
+	                                     DBUS_IFACE_OBJECT_MANAGER, "GetManagedObjects");
 
 	g_autoptr(GDBusMessage) rep;
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL ||
-			g_dbus_message_to_gerror(rep, error))
+	                                                          G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1,
+	                                                          NULL, NULL, error)) == NULL ||
+	    g_dbus_message_to_gerror(rep, error))
 		return NULL;
 
 	GVariantIter * objects = NULL;
@@ -235,8 +236,9 @@ GVariantIter * g_dbus_get_properties_sync(GDBusConnection * conn,
 
 	g_autoptr(GDBusMessage) rep;
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL ||
-			g_dbus_message_to_gerror(rep, error))
+	                                                          G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1,
+	                                                          NULL, NULL, error)) == NULL ||
+	    g_dbus_message_to_gerror(rep, error))
 		return NULL;
 
 	GVariantIter * properties = NULL;
@@ -262,8 +264,8 @@ void g_dbus_get_property(GDBusConnection * conn, const char * service,
 	msg = g_dbus_message_new_method_call(service, path, DBUS_IFACE_PROPERTIES, "Get");
 	g_dbus_message_set_body(msg, g_variant_new("(ss)", interface, property));
 
-	g_dbus_connection_send_message_with_reply(conn, msg,
-			G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, callback, userdata);
+	g_dbus_connection_send_message_with_reply(conn, msg, G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1,
+	                                          NULL, NULL, callback, userdata);
 
 }
 
@@ -280,9 +282,8 @@ GVariant * g_dbus_get_property_finish(GDBusConnection * conn,
 		GAsyncResult * result, GError ** error) {
 
 	g_autoptr(GDBusMessage) rep;
-	if ((rep = g_dbus_connection_send_message_with_reply_finish(conn,
-				result, error)) == NULL ||
-			g_dbus_message_to_gerror(rep, error))
+	if ((rep = g_dbus_connection_send_message_with_reply_finish(conn, result, error)) == NULL ||
+	    g_dbus_message_to_gerror(rep, error))
 		return NULL;
 
 	GVariant * value = NULL;
@@ -311,8 +312,9 @@ bool g_dbus_set_property_sync(GDBusConnection * conn, const char * service,
 
 	g_autoptr(GDBusMessage) rep;
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
-					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL ||
-			g_dbus_message_to_gerror(rep, error))
+	                                                          G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1,
+	                                                          NULL, NULL, error)) == NULL ||
+	    g_dbus_message_to_gerror(rep, error))
 		return false;
 
 	return true;

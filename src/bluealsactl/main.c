@@ -33,7 +33,7 @@ struct bactl_config config = {
 	.verbose = 0,
 };
 
-static const char *transport_code_to_string(int transport_code) {
+static const char * transport_code_to_string(int transport_code) {
 	switch (transport_code) {
 	case BA_PCM_TRANSPORT_A2DP_SOURCE:
 		return "A2DP-source";
@@ -68,7 +68,7 @@ static const char *transport_code_to_string(int transport_code) {
 	}
 }
 
-static const char *pcm_mode_to_string(int pcm_mode) {
+static const char * pcm_mode_to_string(int pcm_mode) {
 	switch (pcm_mode) {
 	case BA_PCM_MODE_SINK:
 		return "sink";
@@ -79,7 +79,7 @@ static const char *pcm_mode_to_string(int pcm_mode) {
 	}
 }
 
-static const char *pcm_format_to_string(int pcm_format) {
+static const char * pcm_format_to_string(int pcm_format) {
 	switch (pcm_format) {
 	case 0x0108:
 		return "U8";
@@ -96,7 +96,7 @@ static const char *pcm_format_to_string(int pcm_format) {
 	}
 }
 
-static void print_pcm_codec(const struct ba_pcm_codec *codec) {
+static void print_pcm_codec(const struct ba_pcm_codec * codec) {
 
 	printf("%s", codec->name);
 
@@ -122,18 +122,18 @@ static void print_pcm_codec(const struct ba_pcm_codec *codec) {
 
 }
 
-void bactl_get_ba_services(bactl_get_ba_services_cb func, void *data, DBusError *err) {
+void bactl_get_ba_services(bactl_get_ba_services_cb func, void * data, DBusError * err) {
 
-	DBusMessage *msg = NULL, *rep = NULL;
+	DBusMessage * msg = NULL, * rep = NULL;
 
-	if ((msg = dbus_message_new_method_call(DBUS_SERVICE_DBUS,
-					DBUS_PATH_DBUS, DBUS_INTERFACE_DBUS, "ListNames")) == NULL) {
+	if ((msg = dbus_message_new_method_call(DBUS_SERVICE_DBUS, DBUS_PATH_DBUS, DBUS_INTERFACE_DBUS,
+	                                        "ListNames")) == NULL) {
 		dbus_set_error_const(err, DBUS_ERROR_NO_MEMORY, NULL);
 		goto fail;
 	}
 
-	if ((rep = dbus_connection_send_with_reply_and_block(config.dbus.conn,
-					msg, DBUS_TIMEOUT_USE_DEFAULT, err)) == NULL) {
+	if ((rep = dbus_connection_send_with_reply_and_block(config.dbus.conn, msg,
+	                                                     DBUS_TIMEOUT_USE_DEFAULT, err)) == NULL) {
 		goto fail;
 	}
 
@@ -145,18 +145,18 @@ void bactl_get_ba_services(bactl_get_ba_services_cb func, void *data, DBusError 
 
 	DBusMessageIter iter_names;
 	for (dbus_message_iter_recurse(&iter, &iter_names);
-			dbus_message_iter_get_arg_type(&iter_names) != DBUS_TYPE_INVALID;
-			dbus_message_iter_next(&iter_names)) {
+	     dbus_message_iter_get_arg_type(&iter_names) != DBUS_TYPE_INVALID;
+	     dbus_message_iter_next(&iter_names)) {
 
 		if (dbus_message_iter_get_arg_type(&iter_names) != DBUS_TYPE_STRING) {
-			char *signature = dbus_message_iter_get_signature(&iter);
+			char * signature = dbus_message_iter_get_signature(&iter);
 			dbus_set_error(err, DBUS_ERROR_INVALID_SIGNATURE,
-					"Incorrect signature: %s != as", signature);
+			               "Incorrect signature: %s != as", signature);
 			dbus_free(signature);
 			goto fail;
 		}
 
-		const char *name;
+		const char * name;
 		dbus_message_iter_get_basic(&iter_names, &name);
 		if (!func(name, data)) {
 			break;
@@ -171,9 +171,9 @@ fail:
 		dbus_message_unref(rep);
 }
 
-bool bactl_get_ba_pcm(const char *path, struct ba_pcm *pcm, DBusError *err) {
+bool bactl_get_ba_pcm(const char * path, struct ba_pcm * pcm, DBusError * err) {
 
-	struct ba_pcm *pcms = NULL;
+	struct ba_pcm * pcms = NULL;
 	size_t pcms_count = 0;
 
 	if (!dbus_validate_path(path, err))
@@ -194,16 +194,16 @@ bool bactl_get_ba_pcm(const char *path, struct ba_pcm *pcm, DBusError *err) {
 
 	if (!found)
 		dbus_set_error(err, DBUS_ERROR_UNKNOWN_OBJECT,
-				"Object path not found: '%s'", path);
+		               "Object path not found: '%s'", path);
 	return found;
 }
 
 bool bactl_parse_common_options(int opt) {
 	switch (opt) {
-	case 'q' /* --quiet */ :
+	case 'q' /* --quiet */:
 		config.quiet = true;
 		return true;
-	case 'v' /* --verbose */ :
+	case 'v' /* --verbose */:
 		config.verbose++;
 		return true;
 	default:
@@ -211,7 +211,7 @@ bool bactl_parse_common_options(int opt) {
 	}
 }
 
-bool bactl_parse_value_on_off(const char *value, bool *out) {
+bool bactl_parse_value_on_off(const char * value, bool * out) {
 
 	static const char * const value_on[] = { "on", "yes", "true", "y", "1" };
 	static const char * const value_off[] = { "off", "no", "false", "n", "0" };
@@ -231,14 +231,14 @@ bool bactl_parse_value_on_off(const char *value, bool *out) {
 	return false;
 }
 
-void bactl_print_adapters(const struct ba_service_props *props) {
+void bactl_print_adapters(const struct ba_service_props * props) {
 	printf("Adapters:");
 	for (size_t i = 0; i < props->adapters_len; i++)
 		printf(" %s", props->adapters[i]);
 	printf("\n");
 }
 
-void bactl_print_profiles_and_codecs(const struct ba_service_props *props) {
+void bactl_print_profiles_and_codecs(const struct ba_service_props * props) {
 	printf("Profiles:\n");
 	for (size_t i = 0; i < props->profiles_len; i++) {
 		printf("  %-11s :", props->profiles[i]);
@@ -250,7 +250,7 @@ void bactl_print_profiles_and_codecs(const struct ba_service_props *props) {
 	}
 }
 
-void bactl_print_pcm_available_codecs(const struct ba_pcm *pcm, DBusError *err) {
+void bactl_print_pcm_available_codecs(const struct ba_pcm * pcm, DBusError * err) {
 
 	printf("Available codecs:");
 
@@ -271,46 +271,46 @@ fail:
 	printf("\n");
 }
 
-void bactl_print_pcm_selected_codec(const struct ba_pcm *pcm) {
+void bactl_print_pcm_selected_codec(const struct ba_pcm * pcm) {
 	printf("Selected codec:%s", config.verbose >= 2 ? "\n\t" : " ");
 	print_pcm_codec(&pcm->codec);
 	printf("\n");
 }
 
-void bactl_print_pcm_delay(const struct ba_pcm *pcm) {
+void bactl_print_pcm_delay(const struct ba_pcm * pcm) {
 	printf("Delay: %#.1f ms\n", pcm->delay / 10.0);
 }
 
-void bactl_print_pcm_client_delay(const struct ba_pcm *pcm) {
+void bactl_print_pcm_client_delay(const struct ba_pcm * pcm) {
 	printf("ClientDelay: %#.1f ms\n", pcm->client_delay / 10.0);
 }
 
-void bactl_print_pcm_soft_volume(const struct ba_pcm *pcm) {
+void bactl_print_pcm_soft_volume(const struct ba_pcm * pcm) {
 	printf("SoftVolume: %s\n", pcm->soft_volume ? "true" : "false");
 }
 
-void bactl_print_pcm_channel_map(const struct ba_pcm *pcm) {
+void bactl_print_pcm_channel_map(const struct ba_pcm * pcm) {
 	printf("ChannelMap:");
 	for (size_t i = 0; i < pcm->channels; i++)
 		printf(" %s", pcm->channel_map[i]);
 	printf("\n");
 }
 
-void bactl_print_pcm_volume(const struct ba_pcm *pcm) {
+void bactl_print_pcm_volume(const struct ba_pcm * pcm) {
 	printf("Volume:");
 	for (size_t i = 0; i < pcm->channels; i++)
 		printf(" %u", pcm->volume[i].volume);
 	printf("\n");
 }
 
-void bactl_print_pcm_mute(const struct ba_pcm *pcm) {
+void bactl_print_pcm_mute(const struct ba_pcm * pcm) {
 	printf("Mute:");
 	for (size_t i = 0; i < pcm->channels; i++)
 		printf(" %s", pcm->volume[i].muted ? "on" : "off");
 	printf("\n");
 }
 
-void bactl_print_pcm_properties(const struct ba_pcm *pcm, DBusError *err) {
+void bactl_print_pcm_properties(const struct ba_pcm * pcm, DBusError * err) {
 	printf("Device: %s\n", pcm->device_path);
 	printf("Sequence: %u\n", pcm->sequence);
 	printf("Transport: %s\n", transport_code_to_string(pcm->transport));
@@ -329,8 +329,8 @@ void bactl_print_pcm_properties(const struct ba_pcm *pcm, DBusError *err) {
 	bactl_print_pcm_mute(pcm);
 }
 
-static const char *progname = NULL;
-void bactl_print_usage(const char *format, ...) {
+static const char * progname = NULL;
+void bactl_print_usage(const char * format, ...) {
 
 	char usage[256];
 	va_list va;
@@ -354,7 +354,7 @@ extern const struct bactl_command cmd_open;
 extern const struct bactl_command cmd_softvol;
 extern const struct bactl_command cmd_volume;
 
-static const struct bactl_command *commands[] = {
+static const struct bactl_command * commands[] = {
 	&cmd_list_services,
 	&cmd_list_pcms,
 	&cmd_status,
@@ -368,7 +368,7 @@ static const struct bactl_command *commands[] = {
 	&cmd_open,
 };
 
-static void usage(const char *name) {
+static void usage(const char * name) {
 
 	size_t command_name_max_len = 0;
 	for (size_t i = 0; i < ARRAYSIZE(commands); i++) {
@@ -387,11 +387,11 @@ static void usage(const char *name) {
 	printf("\nCommands:\n");
 	for (size_t i = 0; i < ARRAYSIZE(commands); i++)
 		printf("  %-*s  %s\n", (int)(command_name_max_len),
-				commands[i]->name, commands[i]->description);
+		       commands[i]->name, commands[i]->description);
 
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char * argv[]) {
 
 	progname = argv[0];
 
@@ -412,13 +412,13 @@ int main(int argc, char *argv[]) {
 		if (bactl_parse_common_options(opt))
 			continue;
 		switch (opt) {
-		case 'h' /* --help */ :
+		case 'h' /* --help */:
 			usage(argv[0]);
 			return EXIT_SUCCESS;
-		case 'V' /* --version */ :
+		case 'V' /* --version */:
 			printf("%s\n", PACKAGE_VERSION);
 			return EXIT_SUCCESS;
-		case 'B' /* --dbus=NAME */ :
+		case 'B' /* --dbus=NAME */:
 			snprintf(dbus_ba_service, sizeof(dbus_ba_service), BLUEALSA_SERVICE ".%s", optarg);
 			if (!dbus_validate_bus_name(dbus_ba_service, NULL)) {
 				error("Invalid BlueALSA D-Bus service name: %s", dbus_ba_service);
@@ -446,7 +446,7 @@ int main(int argc, char *argv[]) {
 
 	if (argc == 0) {
 		/* show "status" information by default */
-		char *status_argv[] = { "status", NULL };
+		char * status_argv[] = { "status", NULL };
 		return cmd_status.func(1, status_argv);
 	}
 

@@ -31,8 +31,8 @@
 #include "ba-rfcomm.h"
 #include "ba-transport.h"
 #include "bluealsa-dbus.h"
-#include "bluez-iface.h"
 #include "bluez.h"
+#include "bluez-iface.h"
 #include "dbus.h"
 #include "io.h"
 #if ENABLE_OFONO
@@ -69,9 +69,9 @@ static const char * transport_get_dbus_path_type(
 }
 
 int transport_pcm_init(
-		struct ba_transport_pcm *pcm,
+		struct ba_transport_pcm * pcm,
 		enum ba_transport_pcm_mode mode,
-		struct ba_transport *t,
+		struct ba_transport * t,
 		bool master) {
 
 	pcm->t = t;
@@ -97,14 +97,15 @@ int transport_pcm_init(
 		return -1;
 
 	pcm->ba_dbus_path = g_strdup_printf("%s/%s/%s",
-			t->d->ba_dbus_path, transport_get_dbus_path_type(t->profile),
-			mode == BA_TRANSPORT_PCM_MODE_SOURCE ? "source" : "sink");
+	                                    t->d->ba_dbus_path,
+	                                    transport_get_dbus_path_type(t->profile),
+	                                    mode == BA_TRANSPORT_PCM_MODE_SOURCE ? "source" : "sink");
 
 	return 0;
 }
 
 void transport_pcm_free(
-		struct ba_transport_pcm *pcm) {
+		struct ba_transport_pcm * pcm) {
 
 	pthread_mutex_lock(&pcm->mutex);
 	ba_transport_pcm_release(pcm);
@@ -135,7 +136,7 @@ void transport_pcm_free(
  * @return If state transition was successful, 0 is returned. Otherwise, -1 is
  *   returned and errno is set to EINVAL. */
 int ba_transport_pcm_state_set(
-		struct ba_transport_pcm *pcm,
+		struct ba_transport_pcm * pcm,
 		enum ba_transport_pcm_state state) {
 
 	pthread_mutex_lock(&pcm->state_mtx);
@@ -147,12 +148,12 @@ int ba_transport_pcm_state_set(
 
 	/* Allow wrapping around the state machine. */
 	if (state == BA_TRANSPORT_PCM_STATE_IDLE &&
-			old_state == BA_TRANSPORT_PCM_STATE_TERMINATED)
+	    old_state == BA_TRANSPORT_PCM_STATE_TERMINATED)
 		valid = true;
 
 	/* Thread initialization failure: STARTING -> STOPPING */
 	if (state == BA_TRANSPORT_PCM_STATE_STOPPING &&
-			old_state == BA_TRANSPORT_PCM_STATE_STARTING)
+	    old_state == BA_TRANSPORT_PCM_STATE_STARTING)
 		valid = true;
 
 	/* Additionally, it is allowed to move to the TERMINATED state from
@@ -174,7 +175,7 @@ int ba_transport_pcm_state_set(
 	if (state != old_state && (
 				state == BA_TRANSPORT_PCM_STATE_RUNNING ||
 				old_state == BA_TRANSPORT_PCM_STATE_RUNNING)) {
-			bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_RUNNING);
+		bluealsa_dbus_pcm_update(pcm, BA_DBUS_PCM_UPDATE_RUNNING);
 	}
 
 	pthread_cond_broadcast(&pcm->cond);
@@ -184,7 +185,7 @@ int ba_transport_pcm_state_set(
 /**
  * Check if transport PCM is in given state. */
 bool ba_transport_pcm_state_check(
-		const struct ba_transport_pcm *pcm,
+		const struct ba_transport_pcm * pcm,
 		enum ba_transport_pcm_state state) {
 	pthread_mutex_lock(MUTABLE(&pcm->state_mtx));
 	bool ok = pcm->state == state;
@@ -195,7 +196,7 @@ bool ba_transport_pcm_state_check(
 /**
  * Wait until transport PCM reaches given state. */
 int ba_transport_pcm_state_wait(
-		const struct ba_transport_pcm *pcm,
+		const struct ba_transport_pcm * pcm,
 		enum ba_transport_pcm_state state) {
 
 	enum ba_transport_pcm_state tmp;
@@ -212,20 +213,20 @@ int ba_transport_pcm_state_wait(
 	return -1;
 }
 
-struct ba_transport_pcm *ba_transport_pcm_ref(struct ba_transport_pcm *pcm) {
+struct ba_transport_pcm * ba_transport_pcm_ref(struct ba_transport_pcm * pcm) {
 	ba_transport_ref(pcm->t);
 	return pcm;
 }
 
-void ba_transport_pcm_unref(struct ba_transport_pcm *pcm) {
+void ba_transport_pcm_unref(struct ba_transport_pcm * pcm) {
 	ba_transport_unref(pcm->t);
 }
 
 /**
  * Transport IO thread cleanup function for pthread cleanup. */
-void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) {
+void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm * pcm) {
 
-	struct ba_transport *t = pcm->t;
+	struct ba_transport * t = pcm->t;
 
 	/* The thread may have been cancelled while a PCM drain operation
 	 * is in progress. To prevent ba_transport_pcm_drain() from blocking
@@ -262,9 +263,9 @@ void ba_transport_pcm_thread_cleanup(struct ba_transport_pcm *pcm) {
 	ba_transport_unref(t);
 }
 
-int ba_transport_pcm_bt_acquire(struct ba_transport_pcm *pcm) {
+int ba_transport_pcm_bt_acquire(struct ba_transport_pcm * pcm) {
 
-	struct ba_transport *t = pcm->t;
+	struct ba_transport * t = pcm->t;
 	int ret = -1;
 
 	if (pcm->fd_bt != -1)
@@ -282,8 +283,7 @@ int ba_transport_pcm_bt_acquire(struct ba_transport_pcm *pcm) {
 
 	/* check for invalid (i.e. not set) MTU values */
 	if (t->mtu_read == 0 || t->mtu_write == 0) {
-		error("Invalid BT socket MTU [%d]: R:%zu W:%zu", bt_fd,
-				t->mtu_read, t->mtu_write);
+		error("Invalid BT socket MTU [%d]: R:%zu W:%zu", bt_fd, t->mtu_read, t->mtu_write);
 		goto fail;
 	}
 
@@ -300,7 +300,7 @@ fail:
 	return ret;
 }
 
-int ba_transport_pcm_bt_release(struct ba_transport_pcm *pcm) {
+int ba_transport_pcm_bt_release(struct ba_transport_pcm * pcm) {
 
 	if (pcm->fd_bt != -1) {
 #if DEBUG
@@ -318,11 +318,11 @@ int ba_transport_pcm_bt_release(struct ba_transport_pcm *pcm) {
 /**
  * Start transport PCM thread. */
 int ba_transport_pcm_start(
-		struct ba_transport_pcm *pcm,
+		struct ba_transport_pcm * pcm,
 		ba_transport_pcm_thread_func th_func,
-		const char *name) {
+		const char * name) {
 
-	struct ba_transport *t = pcm->t;
+	struct ba_transport * t = pcm->t;
 	sigset_t sigset, oldset;
 	int ret = -1;
 
@@ -387,7 +387,7 @@ fail:
  * a cancellation point, so the IO thread might get stuck - it will not
  * terminate, so join will not return either! */
 void ba_transport_pcm_stop(
-		struct ba_transport_pcm *pcm) {
+		struct ba_transport_pcm * pcm) {
 
 	pthread_mutex_lock(&pcm->state_mtx);
 
@@ -443,7 +443,7 @@ void ba_transport_pcm_stop(
 
 }
 
-int ba_transport_pcm_release(struct ba_transport_pcm *pcm) {
+int ba_transport_pcm_release(struct ba_transport_pcm * pcm) {
 
 #if DEBUG
 	/* assert that we were called with the lock held */
@@ -465,7 +465,7 @@ int ba_transport_pcm_release(struct ba_transport_pcm *pcm) {
 	return 0;
 }
 
-int ba_transport_pcm_pause(struct ba_transport_pcm *pcm) {
+int ba_transport_pcm_pause(struct ba_transport_pcm * pcm) {
 
 	pthread_mutex_lock(&pcm->mutex);
 	debug("PCM pause: %d", pcm->fd);
@@ -475,7 +475,7 @@ int ba_transport_pcm_pause(struct ba_transport_pcm *pcm) {
 	return ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_PAUSE);
 }
 
-int ba_transport_pcm_resume(struct ba_transport_pcm *pcm) {
+int ba_transport_pcm_resume(struct ba_transport_pcm * pcm) {
 
 	pthread_mutex_lock(&pcm->mutex);
 	debug("PCM resume: %d", pcm->fd);
@@ -485,7 +485,7 @@ int ba_transport_pcm_resume(struct ba_transport_pcm *pcm) {
 	return ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_RESUME);
 }
 
-int ba_transport_pcm_drain(struct ba_transport_pcm *pcm) {
+int ba_transport_pcm_drain(struct ba_transport_pcm * pcm) {
 
 	pthread_mutex_lock(&pcm->mutex);
 
@@ -518,7 +518,7 @@ int ba_transport_pcm_drain(struct ba_transport_pcm *pcm) {
 	return 0;
 }
 
-int ba_transport_pcm_drop(struct ba_transport_pcm *pcm) {
+int ba_transport_pcm_drop(struct ba_transport_pcm * pcm) {
 
 #if DEBUG
 	pthread_mutex_lock(&pcm->mutex);
@@ -537,7 +537,7 @@ int ba_transport_pcm_drop(struct ba_transport_pcm *pcm) {
 }
 
 int ba_transport_pcm_signal_send(
-		struct ba_transport_pcm *pcm,
+		struct ba_transport_pcm * pcm,
 		enum ba_transport_pcm_signal signal) {
 
 	int ret = -1;
@@ -567,13 +567,13 @@ fail:
  * @note
  * In case of error, this function will return -1 instead of signal value. */
 enum ba_transport_pcm_signal ba_transport_pcm_signal_recv(
-		struct ba_transport_pcm *pcm) {
+		struct ba_transport_pcm * pcm) {
 
 	enum ba_transport_pcm_signal signal;
 	ssize_t ret;
 
 	while ((ret = read(pcm->pipe[0], &signal, sizeof(signal))) == -1 &&
-			errno == EINTR)
+	       errno == EINTR)
 		continue;
 
 	if (ret == sizeof(signal))
@@ -583,7 +583,7 @@ enum ba_transport_pcm_signal ba_transport_pcm_signal_recv(
 	return -1;
 }
 
-bool ba_transport_pcm_is_active(const struct ba_transport_pcm *pcm) {
+bool ba_transport_pcm_is_active(const struct ba_transport_pcm * pcm) {
 	pthread_mutex_lock(MUTABLE(&pcm->mutex));
 	bool active = pcm->fd != -1 && !pcm->paused;
 	pthread_mutex_unlock(MUTABLE(&pcm->mutex));
@@ -614,10 +614,10 @@ int ba_transport_pcm_volume_range_to_level(int value, int max) {
  * @param soft_mute If not NULL, change software mute state.
  * @param hard_mute If not NULL, change hardware mute state. */
 void ba_transport_pcm_volume_set(
-		struct ba_transport_pcm_volume *volume,
-		const int *level,
-		const bool *soft_mute,
-		const bool *hard_mute) {
+		struct ba_transport_pcm_volume * volume,
+		const int * level,
+		const bool * soft_mute,
+		const bool * hard_mute) {
 
 	if (level != NULL)
 		volume->level = *level;
@@ -625,7 +625,7 @@ void ba_transport_pcm_volume_set(
 	 * was not enabled or we are updating software and hardware mute
 	 * at the same time. */
 	if (soft_mute != NULL &&
-			(!volume->hard_mute || hard_mute != NULL))
+	    (!volume->hard_mute || hard_mute != NULL))
 		volume->soft_mute = *soft_mute;
 	if (hard_mute != NULL)
 		volume->hard_mute = *hard_mute;
@@ -640,9 +640,9 @@ void ba_transport_pcm_volume_set(
  * Synchronize PCM volume level.
  *
  * This function notifies remote Bluetooth device and D-Bus clients. */
-int ba_transport_pcm_volume_sync(struct ba_transport_pcm *pcm, unsigned int update_mask) {
+int ba_transport_pcm_volume_sync(struct ba_transport_pcm * pcm, unsigned int update_mask) {
 
-	struct ba_transport *t = pcm->t;
+	struct ba_transport * t = pcm->t;
 
 	/* In case of A2DP Source or HSP/HFP Audio Gateway skip notifying Bluetooth
 	 * device if we are using software volume control. This will prevent volume
@@ -662,8 +662,9 @@ int ba_transport_pcm_volume_sync(struct ba_transport_pcm *pcm, unsigned int upda
 			level_sum += pcm->volume[i].level;
 
 		/* Volume rage for A2DP and ASHA is the same. */
-		uint16_t volume = ba_transport_pcm_volume_level_to_range(
-				level_sum / (int)pcm->channels, BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX);
+		const unsigned int volume =
+			ba_transport_pcm_volume_level_to_range(level_sum / (int)pcm->channels,
+			                                       BLUEZ_MEDIA_TRANSPORT_A2DP_VOLUME_MAX);
 
 		/* Skip update if nothing has changed. */
 		if (volume != t->media.volume) {
@@ -671,7 +672,8 @@ int ba_transport_pcm_volume_sync(struct ba_transport_pcm *pcm, unsigned int upda
 			GError * err = NULL;
 			t->media.volume = volume;
 			g_dbus_set_property_sync(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
-					BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume", g_variant_new_uint16(volume), &err);
+			                         BLUEZ_IFACE_MEDIA_TRANSPORT, "Volume",
+			                         g_variant_new_uint16(volume), &err);
 
 			if (err != NULL) {
 				warn("Couldn't set BT device volume: %s", err->message);
@@ -702,9 +704,9 @@ final:
 /**
  * Get non-software PCM volume level if available. */
 int ba_transport_pcm_get_hardware_volume(
-		const struct ba_transport_pcm *pcm) {
+		const struct ba_transport_pcm * pcm) {
 
-	const struct ba_transport *t = pcm->t;
+	const struct ba_transport * t = pcm->t;
 
 	if (BA_TRANSPORT_PROFILE_IS_MEDIA(t))
 		return t->media.volume;
@@ -758,9 +760,9 @@ int ba_transport_pcm_delay_get(
  * Synchronize PCM playback delay.
  *
  * This function notifies remote Bluetooth device and D-Bus clients. */
-int ba_transport_pcm_delay_sync(struct ba_transport_pcm *pcm, unsigned int update_mask) {
+int ba_transport_pcm_delay_sync(struct ba_transport_pcm * pcm, unsigned int update_mask) {
 
-	struct ba_transport *t = pcm->t;
+	struct ba_transport * t = pcm->t;
 
 	/* In case of A2DP Sink, update the delay property of the BlueZ media
 	 * transport interface. BlueZ should forward this value to the remote
@@ -773,12 +775,13 @@ int ba_transport_pcm_delay_sync(struct ba_transport_pcm *pcm, unsigned int updat
 		delay += pcm->client_delay_dms;
 
 		if (t->media.delay_reporting &&
-					abs(delay - t->media.delay) >= 100 /* 10ms */) {
+		    abs(delay - t->media.delay) >= 100 /* 10ms */) {
 
-			GError *err = NULL;
+			GError * err = NULL;
 			t->media.delay = delay;
 			g_dbus_set_property_sync(config.dbus, t->bluez_dbus_owner, t->bluez_dbus_path,
-					BLUEZ_IFACE_MEDIA_TRANSPORT, "Delay", g_variant_new_uint16(delay), &err);
+			                         BLUEZ_IFACE_MEDIA_TRANSPORT, "Delay",
+			                         g_variant_new_uint16(delay), &err);
 
 			if (err != NULL) {
 				if (err->code == G_DBUS_ERROR_PROPERTY_READ_ONLY)
@@ -811,7 +814,7 @@ final:
 	return 0;
 }
 
-const char *ba_transport_pcm_channel_to_string(
+const char * ba_transport_pcm_channel_to_string(
 		enum ba_transport_pcm_channel channel) {
 	switch (channel) {
 	case BA_TRANSPORT_PCM_CHANNEL_MONO:

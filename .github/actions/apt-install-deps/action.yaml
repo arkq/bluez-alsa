@@ -6,9 +6,9 @@ runs:
   using: composite
   steps:
     - name: Install DEB Packages
-      uses: tecolicom/actions-use-apt-tools@v1
+      uses: gerlero/apt-install@v1
       with:
-        tools: >
+        packages: >
           bear
           check
           iwyu

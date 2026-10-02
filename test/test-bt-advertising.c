@@ -10,8 +10,8 @@
 
 #include <check.h>
 #include <gio/gio.h>
-#include <glib-object.h>
 #include <glib.h>
+#include <glib-object.h>
 
 #include "ba-adapter.h"
 #include "ba-config.h"
@@ -57,7 +57,8 @@ CK_START_TEST(test_bt_advertising) {
 	bluetooth_advertising_unregister_sync(adv);
 	ba_adapter_unref(adapter);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_bt_advertising_service_data) {
 
@@ -70,12 +71,12 @@ CK_START_TEST(test_bt_advertising_service_data) {
 	/* Verify what happens if service data is too big. */
 	uint8_t big[128] = { 0 };
 	ck_assert_int_eq(bluetooth_advertising_set_service_data(adv, big, sizeof(big)),
-				ERROR_CODE_INVALID_SIZE);
+	                 ERROR_CODE_INVALID_SIZE);
 
 	/* Set service data. */
 	uint8_t data[] = { 0x01, 0x02, 0x03, 0x04, 0x05 };
 	ck_assert_int_eq(bluetooth_advertising_set_service_data(adv, data, sizeof(data)),
-				ERROR_CODE_OK);
+	                 ERROR_CODE_OK);
 
 	g_autoptr(GAsyncQueue) queue = g_async_queue_new();
 	bluetooth_advertising_register(adv, adapter, register_finish, queue);
@@ -95,7 +96,8 @@ CK_START_TEST(test_bt_advertising_service_data) {
 	bluetooth_advertising_unregister_sync(adv);
 	ba_adapter_unref(adapter);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 static void tc_setup(void) {
 

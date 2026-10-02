@@ -15,17 +15,16 @@
 #include "shared/dbus-client-pcm.h"
 #include "shared/log.h"
 
-static void usage(const char *command) {
+static void usage(const char * command) {
 	printf("Show PCM properties.\n\n");
 	bactl_print_usage("%s [OPTION]... PCM-PATH", command);
 	printf("\nOptions:\n"
-			"  -h, --help\t\tShow this message and exit\n"
-			"\nPositional arguments:\n"
-			"  PCM-PATH\tBlueALSA PCM D-Bus object path\n"
-	);
+	       "  -h, --help\t\tShow this message and exit\n"
+	       "\nPositional arguments:\n"
+	       "  PCM-PATH\tBlueALSA PCM D-Bus object path\n");
 }
 
-static int cmd_info_func(int argc, char *argv[]) {
+static int cmd_info_func(int argc, char * argv[]) {
 
 	int opt;
 	const char * opts = "hqv";
@@ -41,7 +40,7 @@ static int cmd_info_func(int argc, char *argv[]) {
 		if (bactl_parse_common_options(opt))
 			continue;
 		switch (opt) {
-		case 'h' /* --help */ :
+		case 'h' /* --help */:
 			usage(argv[0]);
 			return EXIT_SUCCESS;
 		default:
@@ -60,7 +59,7 @@ static int cmd_info_func(int argc, char *argv[]) {
 	}
 
 	DBusError err = DBUS_ERROR_INIT;
-	const char *path = argv[optind];
+	const char * path = argv[optind];
 
 	struct ba_pcm pcm;
 	if (!bactl_get_ba_pcm(path, &pcm, &err)) {

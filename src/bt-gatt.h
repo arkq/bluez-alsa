@@ -11,28 +11,28 @@
 #include <stdbool.h>
 
 #include <gio/gio.h>
-#include <glib-object.h>
 #include <glib.h>
+#include <glib-object.h>
 
 #include "ba-adapter.h"
 
 #define BLUETOOTH_TYPE_GATT_APPLICATION (bluetooth_gatt_application_get_type())
 G_DECLARE_FINAL_TYPE(BluetoothGATTApplication, bluetooth_gatt_application,
-		BLUETOOTH, GATT_APPLICATION, GObject)
+                     BLUETOOTH, GATT_APPLICATION, GObject)
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(BluetoothGATTApplication, g_object_unref)
 
 #define BLUETOOTH_TYPE_GATT_SERVICE (bluetooth_gatt_service_get_type())
 G_DECLARE_FINAL_TYPE(BluetoothGATTService, bluetooth_gatt_service,
-		BLUETOOTH, GATT_SERVICE, GObject)
+                     BLUETOOTH, GATT_SERVICE, GObject)
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(BluetoothGATTService, g_object_unref)
 
 #define BLUETOOTH_TYPE_GATT_CHARACTERISTIC (bluetooth_gatt_characteristic_get_type())
 G_DECLARE_FINAL_TYPE(BluetoothGATTCharacteristic, bluetooth_gatt_characteristic,
-		BLUETOOTH, GATT_CHARACTERISTIC, GObject)
+                     BLUETOOTH, GATT_CHARACTERISTIC, GObject)
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(BluetoothGATTCharacteristic, g_object_unref)
 
 BluetoothGATTApplication * bluetooth_gatt_application_new(
-		const char * path);
+	const char * path);
 GDBusObjectManagerServer * bluetooth_gatt_application_get_object_manager_server(
 		BluetoothGATTApplication * app);
 

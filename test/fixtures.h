@@ -22,7 +22,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(SRunner, srunner_free)
 /**
  * Wrapper for START_TEST() macro with additional print with test name. */
 #define CK_START_TEST(name) START_TEST(name) { \
-	fprintf(stderr, "\nTEST: " __FILE__ ":" STRINGIZE(__LINE__) ": " STRINGIZE(name) "\n");
+		fprintf(stderr, "\nTEST: " __FILE__ ":" STRINGIZE(__LINE__) ": " STRINGIZE(name) "\n");
 
 /**
  * Wrapper for END_TEST macro. */

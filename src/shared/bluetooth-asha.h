@@ -62,7 +62,7 @@ typedef struct asha_capabilities {
 
 /**
  * Payload for Service Data AD type in ASHA LE advertisement. */
-typedef struct asha_service_data_payload	{
+typedef struct asha_service_data_payload {
 	uint8_t version;
 	asha_capabilities_t caps;
 	/* Four most significant bytes of ASHA device identifier. */

@@ -21,7 +21,7 @@
 #include "shared/spawn.h"
 
 static char bluealsa_aplay_path[256];
-static int spawn_bluealsa_aplay(struct spawn_process *sp, ...) {
+static int spawn_bluealsa_aplay(struct spawn_process * sp, ...) {
 
 	char * argv[32] = { bluealsa_aplay_path };
 	size_t n = 1;
@@ -29,7 +29,7 @@ static int spawn_bluealsa_aplay(struct spawn_process *sp, ...) {
 	va_list ap;
 	va_start(ap, sp);
 
-	char *arg;
+	char * arg;
 	while ((arg = va_arg(ap, char *)) != NULL) {
 		argv[n++] = arg;
 		argv[n] = NULL;
@@ -54,157 +54,161 @@ CK_START_TEST(test_help) {
 
 	struct spawn_process sp_ba_aplay;
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
-				"-v", "--help", NULL), -1);
+	                                      "-v", "--help", NULL), -1);
 
 	char output[1024];
 	/* Check if the end notice is printed. */
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Without given explicit MAC address any/empty MAC is assumed."));
+	                                "Without given explicit MAC address any/empty MAC is assumed."));
 
 	spawn_close(&sp_ba_aplay, NULL);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_configuration) {
 
 	struct spawn_process sp_ba_mock;
-	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, "foo", true,
-				NULL), -1);
+	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, "foo", true, NULL), -1);
 
 	struct spawn_process sp_ba_aplay;
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
-				"--verbose",
-				"--dbus=foo",
-				"--pcm=TestPCM",
-				"--pcm-buffer-time=10000",
-				"--pcm-period-time=500",
-				"--mixer-device=TestMixer",
-				"--mixer-control=TestMixerName",
-				"--mixer-index=1",
-				"--profile=A2DP",
-				"--profile=SCO",
-				"12:34:56:78:90:AB",
-				NULL), -1);
+	                                      "--verbose",
+	                                      "--dbus=foo",
+	                                      "--pcm=TestPCM",
+	                                      "--pcm-buffer-time=10000",
+	                                      "--pcm-period-time=500",
+	                                      "--mixer-device=TestMixer",
+	                                      "--mixer-control=TestMixerName",
+	                                      "--mixer-index=1",
+	                                      "--profile=A2DP",
+	                                      "--profile=SCO",
+	                                      "12:34:56:78:90:AB",
+	                                      NULL), -1);
 
 	char output[1024];
 	/* Check selected configuration. */
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"  BlueALSA service: org.bluealsa.foo"));
+	                                "  BlueALSA service: org.bluealsa.foo"));
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"  ALSA PCM device: TestPCM"));
+	                                "  ALSA PCM device: TestPCM"));
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"  ALSA PCM buffer time: 10000 us"));
+	                                "  ALSA PCM buffer time: 10000 us"));
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"  ALSA PCM period time: 500 us"));
+	                                "  ALSA PCM period time: 500 us"));
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"  ALSA mixer device: TestMixer"));
+	                                "  ALSA mixer device: TestMixer"));
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"  ALSA mixer element: 'TestMixerName',1"));
+	                                "  ALSA mixer element: 'TestMixerName',1"));
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"  Bluetooth device(s): 12:34:56:78:90:AB"));
+	                                "  Bluetooth device(s): 12:34:56:78:90:AB"));
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"  Profile(s): A2DP, SCO"));
+	                                "  Profile(s): A2DP, SCO"));
 
 	spawn_terminate(&sp_ba_aplay, 0);
 	spawn_close(&sp_ba_aplay, NULL);
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_list_devices) {
 
 	struct spawn_process sp_ba_mock;
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
-				"--device-name=23:45:67:89:AB:CD:Speaker",
-				"--profile=a2dp-source",
-				"--profile=hsp-ag",
-				NULL), -1);
+	                                     "--device-name=23:45:67:89:AB:CD:Speaker",
+	                                     "--profile=a2dp-source",
+	                                     "--profile=hsp-ag",
+	                                     NULL), -1);
 
 	struct spawn_process sp_ba_aplay;
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
-				"--loglevel=error",
-				"--list-devices",
-				NULL), -1);
+	                                      "--loglevel=error",
+	                                      "--list-devices",
+	                                      NULL), -1);
 
 	char output[1024];
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"hci11: 23:45:67:89:AB:CD [Speaker], trusted audio-card"));
+	                                "hci11: 23:45:67:89:AB:CD [Speaker], trusted audio-card"));
 
 	spawn_close(&sp_ba_aplay, NULL);
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_list_pcms) {
 
 	struct spawn_process sp_ba_mock;
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, "foo", true,
-				"--device-name=23:45:67:89:AB:CD:Speaker",
-				"--profile=a2dp-source",
-				"--profile=hsp-ag",
-				NULL), -1);
+	                                     "--device-name=23:45:67:89:AB:CD:Speaker",
+	                                     "--profile=a2dp-source",
+	                                     "--profile=hsp-ag",
+	                                     NULL), -1);
 
 	struct spawn_process sp_ba_aplay;
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
-				"--dbus=foo",
-				"--list-pcms",
-				NULL), -1);
+	                                      "--dbus=foo",
+	                                      "--list-pcms",
+	                                      NULL), -1);
 
 	char output[1024];
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"bluealsa:DEV=23:45:67:89:AB:CD,PROFILE=sco,SRV=org.bluealsa.foo"));
+	                                "bluealsa:DEV=23:45:67:89:AB:CD,PROFILE=sco,SRV=org.bluealsa.foo"));
 
 	spawn_close(&sp_ba_aplay, NULL);
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_play_all) {
 
 	struct spawn_process sp_ba_mock;
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
-				"--profile=a2dp-sink",
-				NULL), -1);
+	                                     "--profile=a2dp-sink",
+	                                     NULL), -1);
 
 	struct spawn_process sp_ba_aplay;
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
-				"--pcm=null",
-				"--volume=none",
-				"-v", "-v",
-				NULL), -1);
+	                                      "--pcm=null",
+	                                      "--volume=none",
+	                                      "-v", "-v",
+	                                      NULL), -1);
 
 	char output[1024];
 	/* Check if playback was started for both devices. It can happen in a
 	 * random order, so we are not waiting for a specific device here. */
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Used configuration for "));
+	                                "Used configuration for "));
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Used configuration for "));
+	                                "Used configuration for "));
 
 	spawn_terminate(&sp_ba_aplay, 0);
 	spawn_close(&sp_ba_aplay, NULL);
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_play_single_audio) {
 
 	struct spawn_process sp_ba_mock;
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
-				"--profile=a2dp-sink",
-				NULL), -1);
+	                                     "--profile=a2dp-sink",
+	                                     NULL), -1);
 
 	struct spawn_process sp_ba_aplay;
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
-				"--single-audio",
-				"--pcm=null",
-				"--volume=none",
-				"-v", "-v", "-v",
-				NULL), -1);
+	                                      "--single-audio",
+	                                      "--pcm=null",
+	                                      "--volume=none",
+	                                      "-v", "-v", "-v",
+	                                      NULL), -1);
 
 	char output[1024];
 
@@ -214,9 +218,9 @@ CK_START_TEST(test_play_single_audio) {
 
 #if DEBUG
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Starting IO worker "));
+	                                "Starting IO worker "));
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Starting IO worker "));
+	                                "Starting IO worker "));
 #endif
 
 	/* Let the playback run for a while and then terminate it. The timeout is
@@ -238,33 +242,34 @@ CK_START_TEST(test_play_single_audio) {
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_play_mixer_setup) {
 
 	struct spawn_process sp_ba_mock;
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
-				"--device-name=23:45:67:89:AB:CD:Headset",
-				"--profile=hsp-ag",
-				NULL), -1);
+	                                     "--device-name=23:45:67:89:AB:CD:Headset",
+	                                     "--profile=hsp-ag",
+	                                     NULL), -1);
 
 	struct spawn_process sp_ba_aplay;
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
-				"--profile=SCO",
-				"--pcm=bluealsa:PROFILE=sco",
-				"--volume=mixer",
-				"--mixer-device=bluealsa:DEV=23:45:67:89:AB:CD",
-				"--mixer-control=SCO",
-				"-v",
-				NULL), -1);
+	                                      "--profile=SCO",
+	                                      "--pcm=bluealsa:PROFILE=sco",
+	                                      "--volume=mixer",
+	                                      "--mixer-device=bluealsa:DEV=23:45:67:89:AB:CD",
+	                                      "--mixer-control=SCO",
+	                                      "-v",
+	                                      NULL), -1);
 
 	char output[1024];
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"ALSA mixer device: bluealsa:DEV=23:45:67:89:AB:CD"));
+	                                "ALSA mixer device: bluealsa:DEV=23:45:67:89:AB:CD"));
 
 #if DEBUG
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Opening ALSA mixer: name=bluealsa:DEV=23:45:67:89:AB:CD elem=SCO index=0"));
+	                                "Opening ALSA mixer: name=bluealsa:DEV=23:45:67:89:AB:CD elem=SCO index=0"));
 #endif
 
 	spawn_terminate(&sp_ba_aplay, 0);
@@ -272,7 +277,8 @@ CK_START_TEST(test_play_mixer_setup) {
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_play_dbus_signals) {
 
@@ -284,39 +290,39 @@ CK_START_TEST(test_play_dbus_signals) {
 	 * occasional false negative results may occur. If necessary, the fuzzing
 	 * time can be increased to reduce the probability of such failures. */
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, false,
-				"--timeout=0",
-				"--profile=hfp-ag",
-				"--fuzzing=500",
-				NULL), -1);
+	                                     "--timeout=0",
+	                                     "--profile=hfp-ag",
+	                                     "--fuzzing=500",
+	                                     NULL), -1);
 
 	struct spawn_process sp_ba_aplay;
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
-				"--profile=SCO",
-				"--pcm=null",
-				"--volume=none",
-				"-v", "-v",
-				NULL), -1);
+	                                      "--profile=SCO",
+	                                      "--pcm=null",
+	                                      "--volume=none",
+	                                      "-v", "-v",
+	                                      NULL), -1);
 
 	char output[1024];
 
 #if ENABLE_HFP_CODEC_SELECTION && DEBUG
 	/* With codec selection support, codec is not selected right away. */
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Skipping SCO with codec not selected"));
+	                                "Skipping SCO with codec not selected"));
 #endif
 
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Used configuration for 12:34:56:78:9A:BC"));
+	                                "Used configuration for 12:34:56:78:9A:BC"));
 	/* Check proper sample rate for CVSD codec. */
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"ALSA PCM sample rate: 8000 Hz"));
+	                                "ALSA PCM sample rate: 8000 Hz"));
 
 #if ENABLE_MSBC
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Used configuration for 12:34:56:78:9A:BC"));
+	                                "Used configuration for 12:34:56:78:9A:BC"));
 	/* Check proper sample rate for mSBC codec. */
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"ALSA PCM sample rate: 16000 Hz"));
+	                                "ALSA PCM sample rate: 16000 Hz"));
 #endif
 
 	spawn_terminate(&sp_ba_aplay, 0);
@@ -324,52 +330,54 @@ CK_START_TEST(test_play_dbus_signals) {
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 #if WITH_LIBSAMPLERATE
 CK_START_TEST(test_play_resampler) {
 
 	struct spawn_process sp_ba_mock;
 	ck_assert_int_ne(spawn_bluealsa_mock(&sp_ba_mock, NULL, true,
-				"--profile=a2dp-sink",
-				NULL), -1);
+	                                     "--profile=a2dp-sink",
+	                                     NULL), -1);
 
 	struct spawn_process sp_ba_aplay;
 	ck_assert_int_ne(spawn_bluealsa_aplay(&sp_ba_aplay,
-				"--pcm=null",
-				"--volume=none",
-				"--resampler=sinc-fastest",
-				"-v", "-v", "-v", "-v",
-				NULL), -1);
+	                                      "--pcm=null",
+	                                      "--volume=none",
+	                                      "--resampler=sinc-fastest",
+	                                      "-v", "-v", "-v", "-v",
+	                                      NULL), -1);
 
 	char output[1024];
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Resampler method: sinc-fastest"));
+	                                "Resampler method: sinc-fastest"));
 
-#if DEBUG
+# if DEBUG
 	/* Check if the resampler is correctly configured. */
 	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"PCM sample rate conversion: 44100 Hz -> 44100.00 Hz"));
-#endif
+	                                "PCM sample rate conversion: 44100 Hz -> 44100.00 Hz"));
+# endif
 
 	spawn_terminate(&sp_ba_aplay, 0);
 	spawn_close(&sp_ba_aplay, NULL);
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
 
-} CK_END_TEST
+}
+CK_END_TEST
 #endif
 
-int main(int argc, char *argv[]) {
+int main(int argc, char * argv[]) {
 	preload(argc, argv, ".libs/libalsaloader.so");
 
 	g_autofree char * argv_0 = strdup(argv[0]);
 	const char * argv_0_dir = dirname(argv_0);
 
 	snprintf(bluealsad_mock_path, sizeof(bluealsad_mock_path),
-			"%s/mock/bluealsad-mock", argv_0_dir);
+	         "%s/mock/bluealsad-mock", argv_0_dir);
 	snprintf(bluealsa_aplay_path, sizeof(bluealsa_aplay_path),
-			"%s/../utils/aplay/bluealsa-aplay", argv_0_dir);
+	         "%s/../utils/aplay/bluealsa-aplay", argv_0_dir);
 
 	Suite * s = suite_create(__FILE__);
 	TCase * tc = tcase_create(__FILE__);

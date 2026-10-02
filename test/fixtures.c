@@ -7,17 +7,17 @@
 #include "fixtures.h"
 
 #include <ctype.h>
+#include <libgen.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdbool.h>
-#include <unistd.h>
-#include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
-#include <glib-object.h>
 #include <gio/gio.h>
+#include <glib-object.h>
 
 #include "dbus.h"
 #include "shared/spawn.h"
@@ -46,7 +46,7 @@ int preload(int argc, char * const argv[], const char * filename) {
 	char preload[1024];
 	char * dir = dirname(strncpy(app, argv[0], sizeof(app) - 1));
 	snprintf(preload, sizeof(preload), "%s=%s:%s/%s:%s",
-			LD_PRELOAD, env_preload_sanitizer, dir, filename, env_preload);
+	         LD_PRELOAD, env_preload_sanitizer, dir, filename, env_preload);
 
 	putenv(preload);
 	return execv(argv[0], argv);
@@ -220,7 +220,7 @@ int spawn_bluealsa_mock(struct spawn_process * sp, const char * service,
 	if (spawn(sp, argv, envp, NULL, SPAWN_FLAG_REDIRECT_STDERR) == -1)
 		return -1;
 
-	struct spawn_bluealsa_data *data;
+	struct spawn_bluealsa_data * data;
 	if ((data = calloc(1, sizeof(*data))) == NULL)
 		return -1;
 
@@ -241,17 +241,16 @@ int spawn_bluealsa_mock(struct spawn_process * sp, const char * service,
 		pthread_cond_wait(&data->data_updated, &data->data_mtx);
 
 	strncpy(dbus_bus_address, data->dbus_bus_address,
-			sizeof(dbus_bus_address) - 1);
+	        sizeof(dbus_bus_address) - 1);
 	putenv(dbus_bus_address);
 
 	/* wait for service name acquisition */
 	while (data->acquired_service_name == NULL)
 		pthread_cond_wait(&data->data_updated, &data->data_mtx);
 
-	while (wait_for_ready && (
-				data->ready_count_a2dp < count_a2dp ||
-				data->ready_count_midi < count_midi ||
-				data->ready_count_sco < count_sco))
+	while (wait_for_ready && (data->ready_count_a2dp < count_a2dp ||
+	                          data->ready_count_midi < count_midi ||
+	                          data->ready_count_sco < count_sco))
 		pthread_cond_wait(&data->data_updated, &data->data_mtx);
 
 	pthread_mutex_unlock(&data->data_mtx);

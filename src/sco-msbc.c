@@ -23,12 +23,12 @@
 #include "shared/log.h"
 #include "shared/rt.h"
 
-void *sco_msbc_enc_thread(struct ba_transport_pcm *t_pcm) {
+void * sco_msbc_enc_thread(struct ba_transport_pcm * t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = t_pcm->t;
+	struct ba_transport * t = t_pcm->t;
 	struct io_poll io = { .timeout = -1 };
 	const size_t mtu_write = t->mtu_write;
 
@@ -70,7 +70,7 @@ void *sco_msbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 				break;
 			}
 
-			uint8_t *data = msbc.data.data;
+			uint8_t * data = msbc.data.data;
 			size_t data_len = ffb_blen_out(&msbc.data);
 
 			while (data_len >= mtu_write) {
@@ -114,12 +114,12 @@ fail_msbc:
 	return NULL;
 }
 
-void *sco_msbc_dec_thread(struct ba_transport_pcm *t_pcm) {
+void * sco_msbc_dec_thread(struct ba_transport_pcm * t_pcm) {
 
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	pthread_cleanup_push(PTHREAD_CLEANUP(ba_transport_pcm_thread_cleanup), t_pcm);
 
-	struct ba_transport *t = t_pcm->t;
+	struct ba_transport * t = t_pcm->t;
 	struct io_poll io = { .timeout = -1 };
 
 	struct esco_msbc msbc = { .initialized = false };

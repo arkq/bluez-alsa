@@ -14,7 +14,7 @@
 
 #include "ba-transport-pcm.h"
 
-void *sco_lc3_swb_enc_thread(struct ba_transport_pcm *t_pcm);
-void *sco_lc3_swb_dec_thread(struct ba_transport_pcm *t_pcm);
+void * sco_lc3_swb_enc_thread(struct ba_transport_pcm * t_pcm);
+void * sco_lc3_swb_dec_thread(struct ba_transport_pcm * t_pcm);
 
 #endif

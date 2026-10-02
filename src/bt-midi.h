@@ -8,8 +8,8 @@
 #ifndef BLUEALSA_BT_MIDI_H_
 #define BLUEALSA_BT_MIDI_H_
 
-#include <glib-object.h>
 #include <glib.h>
+#include <glib-object.h>
 
 #include "ba-adapter.h"
 
@@ -18,7 +18,7 @@ G_DECLARE_FINAL_TYPE(BluetoothMIDI, bluetooth_midi, BLUETOOTH, MIDI, GObject)
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(BluetoothMIDI, g_object_unref)
 
 BluetoothMIDI * bluetooth_midi_new(
-		struct ba_adapter * adapter,
-		const char * path);
+	struct ba_adapter * adapter,
+	const char * path);
 
 #endif

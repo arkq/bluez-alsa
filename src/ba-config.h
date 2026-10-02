@@ -42,15 +42,15 @@ struct ba_config {
 	} profile;
 
 	/* established D-Bus connection */
-	GDBusConnection *dbus;
+	GDBusConnection * dbus;
 
 	/* adapters indexed by the HCI device ID */
 	pthread_mutex_t adapters_mutex;
-	struct ba_adapter *adapters[HCI_MAX_DEV];
+	struct ba_adapter * adapters[HCI_MAX_DEV];
 
 	/* List of HCI names (or BT addresses) used for adapters filtering
 	 * during profile registration. Leave it empty to use any adapter. */
-	GArray *hci_filter;
+	GArray * hci_filter;
 
 	/* device connection sequence number */
 	atomic_uint device_seq;
@@ -92,7 +92,7 @@ struct ba_config {
 		unsigned int xapl_vendor_id;
 		unsigned int xapl_product_id;
 		unsigned int xapl_sw_version;
-		const char *xapl_product_name;
+		const char * xapl_product_name;
 		unsigned int xapl_features;
 
 	} hfp;
@@ -106,7 +106,7 @@ struct ba_config {
 	struct {
 
 		/* NULL-terminated list of available A2DP codecs */
-		const struct bluez_a2dp_codec **codecs;
+		const struct bluez_a2dp_codec ** codecs;
 
 		/* Control audio volume natively by the connected device. The disadvantage
 		 * of this control type is a monophonic volume change. */

@@ -37,7 +37,8 @@ CK_START_TEST(test_rtp_a2dp_init) {
 	ck_assert_ptr_nonnull(payload);
 	ck_assert_int_eq(payload[0], 13);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_rtp_a2dp_get_payload) {
 
@@ -67,7 +68,8 @@ CK_START_TEST(test_rtp_a2dp_get_payload) {
 	ck_assert_ptr_null(rtp_a2dp_get_payload(header, sizeof(buffer)));
 	ck_assert_int_eq(errno, EMSGSIZE);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_rtp_state_new_frame) {
 
@@ -84,7 +86,8 @@ CK_START_TEST(test_rtp_state_new_frame) {
 		ck_assert_int_eq(be32toh(header.timestamp), ts_offset);
 	}
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_rtp_state_sync_stream) {
 
@@ -103,8 +106,10 @@ CK_START_TEST(test_rtp_state_sync_stream) {
 		} assert;
 	} stream[] = {
 
-#define RTP(SEQ, TS, PCM_FRAMES) \
-	{ { .seq_number = htobe16(SEQ), .timestamp = htobe32(TS) }, PCM_FRAMES }
+#define RTP(SEQ, TS, PCM_FRAMES) { \
+		{ .seq_number = htobe16(SEQ), .timestamp = htobe32(TS) }, \
+		PCM_FRAMES, \
+}
 
 		{ 1, RTP(1, 10, 10), { 0, 0 } },
 
@@ -154,19 +159,20 @@ CK_START_TEST(test_rtp_state_sync_stream) {
 		int missing_pcm_frames = 0;
 		int missing_rtp_frames = 0;
 		rtp_state_sync_stream(&rtp, &stream[i].rtp.header,
-				&missing_rtp_frames, &missing_pcm_frames);
+		                      &missing_rtp_frames, &missing_pcm_frames);
 
 		ck_assert_int_eq(missing_pcm_frames, stream[i].assert.missing_pcm);
 		ck_assert_int_eq(missing_rtp_frames, stream[i].assert.missing_rtp);
 
-		/* if (fragmented) packet was not broken, simulate PCM playback */
+		/* If (fragmented) packet was not broken, simulate PCM playback. */
 		if (ts_missing != stream[i].rtp.header.timestamp &&
-				stream[i].rtp.pcm_frames)
+		    stream[i].rtp.pcm_frames)
 			rtp_state_update(&rtp, stream[i].rtp.pcm_frames);
 
 	}
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 CK_START_TEST(test_rtp_state_update) {
 
@@ -178,7 +184,8 @@ CK_START_TEST(test_rtp_state_update) {
 
 	ck_assert_int_eq(rtp.ts_pcm_frames, 10 * 16);
 
-} CK_END_TEST
+}
+CK_END_TEST
 
 int main(void) {
 

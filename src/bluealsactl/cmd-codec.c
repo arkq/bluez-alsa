@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <stdbool.h>
 #include <errno.h>
 #include <getopt.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,24 +20,23 @@
 #include "shared/dbus-client-pcm.h"
 #include "shared/hex.h"
 
-static void usage(const char *command) {
+static void usage(const char * command) {
 	printf("Get or set the Bluetooth codec used by the given PCM.\n\n");
 	bactl_print_usage("%s [OPTION]... PCM-PATH [CODEC[:CONFIG]]", command);
 	printf("\nOptions:\n"
-			"  -h, --help\t\tShow this message and exit\n"
-			"  -c, --channels=NUM\tSelect configuration with NUM channels\n"
-			"  -r, --rate=NUM\tSelect configuration with NUM sample rate\n"
-			"  -f, --force\t\tForce codec configuration (skip conformance check)\n"
-			"\nPositional arguments:\n"
-			"  PCM-PATH\tBlueALSA PCM D-Bus object path\n"
-			"  CODEC\t\tCodec identifier for setting new codec\n"
-			"  CONFIG\tOptional configuration for new codec\n"
-			"\nNote:\n"
-			"  This command requires BlueZ version >= 5.52 for SEP support.\n"
-	);
+	       "  -h, --help\t\tShow this message and exit\n"
+	       "  -c, --channels=NUM\tSelect configuration with NUM channels\n"
+	       "  -r, --rate=NUM\tSelect configuration with NUM sample rate\n"
+	       "  -f, --force\t\tForce codec configuration (skip conformance check)\n"
+	       "\nPositional arguments:\n"
+	       "  PCM-PATH\tBlueALSA PCM D-Bus object path\n"
+	       "  CODEC\t\tCodec identifier for setting new codec\n"
+	       "  CONFIG\tOptional configuration for new codec\n"
+	       "\nNote:\n"
+	       "  This command requires BlueZ version >= 5.52 for SEP support.\n");
 }
 
-static int cmd_codec_func(int argc, char *argv[]) {
+static int cmd_codec_func(int argc, char * argv[]) {
 
 	int opt;
 	const char * opts = "hqvc:r:f";
@@ -60,16 +59,16 @@ static int cmd_codec_func(int argc, char *argv[]) {
 		if (bactl_parse_common_options(opt))
 			continue;
 		switch (opt) {
-		case 'h' /* --help */ :
+		case 'h' /* --help */:
 			usage(argv[0]);
 			return EXIT_SUCCESS;
-		case 'c' /* --channels */ :
+		case 'c' /* --channels */:
 			channels = atoi(optarg);
 			break;
-		case 'r' /* --rate */ :
+		case 'r' /* --rate */:
 			rate = atoi(optarg);
 			break;
-		case 'f' /* --force */ :
+		case 'f' /* --force */:
 			force = true;
 			break;
 		default:
@@ -88,7 +87,7 @@ static int cmd_codec_func(int argc, char *argv[]) {
 	}
 
 	DBusError err = DBUS_ERROR_INIT;
-	const char *path = argv[optind];
+	const char * path = argv[optind];
 
 	struct ba_pcm pcm;
 	if (!bactl_get_ba_pcm(path, &pcm, &err)) {
@@ -102,13 +101,13 @@ static int cmd_codec_func(int argc, char *argv[]) {
 		return EXIT_SUCCESS;
 	}
 
-	char *codec = argv[optind + 1];
+	char * codec = argv[optind + 1];
 	uint8_t codec_config[64] = { 0 };
 	ssize_t codec_config_len = 0;
 	unsigned int flags = BA_PCM_SELECT_CODEC_FLAG_NONE;
 	int result = EXIT_FAILURE;
 
-	char *codec_config_hex;
+	char * codec_config_hex;
 	/* split the given string into name and configuration components */
 	if ((codec_config_hex = strchr(codec, ':')) != NULL) {
 		*codec_config_hex++ = '\0';
@@ -130,7 +129,7 @@ static int cmd_codec_func(int argc, char *argv[]) {
 		flags |= BA_PCM_SELECT_CODEC_FLAG_NON_CONFORMANT;
 
 	if (!ba_dbus_pcm_select_codec(&config.dbus, path, ba_dbus_pcm_codec_get_canonical_name(codec),
-				codec_config, codec_config_len, channels, rate, flags, &err))
+	                              codec_config, codec_config_len, channels, rate, flags, &err))
 		goto fail;
 
 	result = EXIT_SUCCESS;

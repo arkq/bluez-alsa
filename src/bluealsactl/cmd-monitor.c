@@ -31,7 +31,7 @@ enum {
 };
 
 struct property {
-	const char *name;
+	const char * name;
 	bool enabled;
 };
 
@@ -45,8 +45,8 @@ static struct property monitor_properties_set[] = {
 	[PROPERTY_VOLUME] = { "Volume", false },
 };
 
-static bool test_bluealsa_service(const char *name, void *data) {
-	bool *result = data;
+static bool test_bluealsa_service(const char * name, void * data) {
+	bool * result = data;
 	if (strcmp(name, BLUEALSA_SERVICE) == 0) {
 		*result = true;
 		return false;
@@ -55,14 +55,14 @@ static bool test_bluealsa_service(const char *name, void *data) {
 	return true;
 }
 
-static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
-		DBusMessageIter *value, void *userdata, DBusError *error) {
-	const char *path = userdata;
+static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char * key,
+		DBusMessageIter * value, void * userdata, DBusError * error) {
+	const char * path = userdata;
 
 	char type;
 	if ((type = dbus_message_iter_get_arg_type(value)) != DBUS_TYPE_VARIANT) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
-				"Incorrect property value type: %c != %c", type, DBUS_TYPE_VARIANT);
+		               "Incorrect property value type: %c != %c", type, DBUS_TYPE_VARIANT);
 		return FALSE;
 	}
 
@@ -72,15 +72,15 @@ static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
 	char type_expected;
 
 	if (monitor_properties_set[PROPERTY_CODEC].enabled &&
-			strcmp(key, monitor_properties_set[PROPERTY_CODEC].name) == 0) {
+	    strcmp(key, monitor_properties_set[PROPERTY_CODEC].name) == 0) {
 		if (type != (type_expected = DBUS_TYPE_STRING))
 			goto fail;
-		const char *codec;
+		const char * codec;
 		dbus_message_iter_get_basic(&variant, &codec);
 		printf("PropertyChanged %s %s %s\n", path, key, codec);
 	}
 	else if (monitor_properties_set[PROPERTY_DELAY].enabled &&
-			strcmp(key, monitor_properties_set[PROPERTY_DELAY].name) == 0) {
+	         strcmp(key, monitor_properties_set[PROPERTY_DELAY].name) == 0) {
 		if (type != (type_expected = DBUS_TYPE_UINT16))
 			goto fail;
 		dbus_uint16_t delay;
@@ -88,7 +88,7 @@ static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
 		printf("PropertyChanged %s %s %#.1f\n", path, key, delay / 10.0);
 	}
 	else if (monitor_properties_set[PROPERTY_CLIENT_DELAY].enabled &&
-			strcmp(key, monitor_properties_set[PROPERTY_CLIENT_DELAY].name) == 0) {
+	         strcmp(key, monitor_properties_set[PROPERTY_CLIENT_DELAY].name) == 0) {
 		if (type != (type_expected = DBUS_TYPE_INT16))
 			goto fail;
 		dbus_int16_t delay;
@@ -96,7 +96,7 @@ static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
 		printf("PropertyChanged %s %s %#.1f\n", path, key, delay / 10.0);
 	}
 	else if (monitor_properties_set[PROPERTY_RUNNING].enabled &&
-			strcmp(key, monitor_properties_set[PROPERTY_RUNNING].name) == 0) {
+	         strcmp(key, monitor_properties_set[PROPERTY_RUNNING].name) == 0) {
 		if (type != (type_expected = DBUS_TYPE_BOOLEAN))
 			goto fail;
 		dbus_bool_t running;
@@ -104,7 +104,7 @@ static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
 		printf("PropertyChanged %s %s %s\n", path, key, running ? "true" : "false");
 	}
 	else if (monitor_properties_set[PROPERTY_SOFT_VOLUME].enabled &&
-			strcmp(key, monitor_properties_set[PROPERTY_SOFT_VOLUME].name) == 0) {
+	         strcmp(key, monitor_properties_set[PROPERTY_SOFT_VOLUME].name) == 0) {
 		if (type != (type_expected = DBUS_TYPE_BOOLEAN))
 			goto fail;
 		dbus_bool_t softvol;
@@ -112,12 +112,12 @@ static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
 		printf("PropertyChanged %s %s %s\n", path, key, softvol ? "true" : "false");
 	}
 	else if (monitor_properties_set[PROPERTY_VOLUME].enabled &&
-			strcmp(key, monitor_properties_set[PROPERTY_VOLUME].name) == 0) {
+	         strcmp(key, monitor_properties_set[PROPERTY_VOLUME].name) == 0) {
 		if (type != (type_expected = DBUS_TYPE_ARRAY))
 			goto fail;
 
 		DBusMessageIter iter;
-		uint8_t *data;
+		uint8_t * data;
 		int len;
 
 		dbus_message_iter_recurse(&variant, &iter);
@@ -134,19 +134,20 @@ static dbus_bool_t monitor_dbus_message_iter_get_pcm_props_cb(const char *key,
 
 fail:
 	dbus_set_error(error, DBUS_ERROR_INVALID_SIGNATURE,
-			"Incorrect variant for '%s': %c != %c", key, type, type_expected);
+	               "Incorrect variant for '%s': %c != %c", key, type, type_expected);
 	return FALSE;
 }
 
-static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *message, void *data) {
+static DBusHandlerResult dbus_signal_handler(DBusConnection * conn, DBusMessage * message,
+		void * data) {
 	(void)conn;
 	(void)data;
 
 	if (dbus_message_get_type(message) != DBUS_MESSAGE_TYPE_SIGNAL)
 		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 
-	const char *interface = dbus_message_get_interface(message);
-	const char *signal = dbus_message_get_member(message);
+	const char * interface = dbus_message_get_interface(message);
+	const char * signal = dbus_message_get_member(message);
 
 	DBusMessageIter iter;
 	if (!dbus_message_iter_init(message, &iter))
@@ -154,7 +155,7 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 
 	if (strcmp(interface, DBUS_INTERFACE_OBJECT_MANAGER) == 0) {
 
-		const char *path;
+		const char * path;
 		if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_OBJECT_PATH)
 			goto fail;
 		dbus_message_iter_get_basic(&iter, &path);
@@ -166,15 +167,15 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 
 			DBusMessageIter iter_ifaces;
 			for (dbus_message_iter_recurse(&iter, &iter_ifaces);
-					dbus_message_iter_get_arg_type(&iter_ifaces) != DBUS_TYPE_INVALID;
-					dbus_message_iter_next(&iter_ifaces)) {
+			     dbus_message_iter_get_arg_type(&iter_ifaces) != DBUS_TYPE_INVALID;
+			     dbus_message_iter_next(&iter_ifaces)) {
 
 				DBusMessageIter iter_iface_entry;
 				if (dbus_message_iter_get_arg_type(&iter_ifaces) != DBUS_TYPE_DICT_ENTRY)
 					goto fail;
 				dbus_message_iter_recurse(&iter_ifaces, &iter_iface_entry);
 
-				const char *iface;
+				const char * iface;
 				if (dbus_message_iter_get_arg_type(&iter_iface_entry) != DBUS_TYPE_STRING)
 					goto fail;
 				dbus_message_iter_get_basic(&iter_iface_entry, &iface);
@@ -215,10 +216,10 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 
 			DBusMessageIter iter_ifaces;
 			for (dbus_message_iter_recurse(&iter, &iter_ifaces);
-					dbus_message_iter_get_arg_type(&iter_ifaces) != DBUS_TYPE_INVALID;
-					dbus_message_iter_next(&iter_ifaces)) {
+			     dbus_message_iter_get_arg_type(&iter_ifaces) != DBUS_TYPE_INVALID;
+			     dbus_message_iter_next(&iter_ifaces)) {
 
-				const char *iface;
+				const char * iface;
 				if (dbus_message_iter_get_arg_type(&iter_ifaces) != DBUS_TYPE_STRING)
 					goto fail;
 				dbus_message_iter_get_basic(&iter_ifaces, &iface);
@@ -237,19 +238,19 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 	else if (strcmp(interface, DBUS_INTERFACE_DBUS) == 0) {
 		if (strcmp(signal, "NameOwnerChanged") == 0) {
 
-			const char *arg0 = NULL, *arg1 = NULL, *arg2 = NULL;
+			const char * arg0 = NULL, * arg1 = NULL, * arg2 = NULL;
 			if (dbus_message_iter_init(message, &iter) &&
-					dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_STRING)
+			    dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_STRING)
 				dbus_message_iter_get_basic(&iter, &arg0);
 			else
 				goto fail;
 			if (dbus_message_iter_next(&iter) &&
-					dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_STRING)
+			    dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_STRING)
 				dbus_message_iter_get_basic(&iter, &arg1);
 			else
 				goto fail;
 			if (dbus_message_iter_next(&iter) &&
-					dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_STRING)
+			    dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_STRING)
 				dbus_message_iter_get_basic(&iter, &arg2);
 			else
 				goto fail;
@@ -268,18 +269,18 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection *conn, DBusMessage *
 		}
 	}
 	else if (strcmp(interface, DBUS_INTERFACE_PROPERTIES) == 0 &&
-			strcmp(signal, "PropertiesChanged") == 0) {
+	         strcmp(signal, "PropertiesChanged") == 0) {
 
-		const char *updated_interface;
+		const char * updated_interface;
 		dbus_message_iter_get_basic(&iter, &updated_interface);
 		dbus_message_iter_next(&iter);
 
 		if (strcmp(updated_interface, BLUEALSA_INTERFACE_PCM) == 0) {
 
 			DBusError err = DBUS_ERROR_INIT;
-			const char *path = dbus_message_get_path(message);
-			if (!dbus_message_iter_dict(&iter, &err,
-						monitor_dbus_message_iter_get_pcm_props_cb, (void *)path)) {
+			const char * path = dbus_message_get_path(message);
+			if (!dbus_message_iter_dict(&iter, &err, monitor_dbus_message_iter_get_pcm_props_cb,
+			                            (void *)path)) {
 				error("Unexpected D-Bus signal: %s", err.message);
 				dbus_error_free(&err);
 				goto fail;
@@ -293,7 +294,7 @@ fail:
 	return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 
-static bool parse_property_list(char *argv[], char *props) {
+static bool parse_property_list(char * argv[], char * props) {
 
 	if (props == NULL) {
 		/* monitor all properties */
@@ -302,7 +303,7 @@ static bool parse_property_list(char *argv[], char *props) {
 		return true;
 	}
 
-	char *prop = strtok(props, ",");
+	char * prop = strtok(props, ",");
 	for (; prop; prop = strtok(NULL, ",")) {
 
 		bool found = false;
@@ -324,16 +325,15 @@ static bool parse_property_list(char *argv[], char *props) {
 	return true;
 }
 
-static void usage(const char *command) {
+static void usage(const char * command) {
 	printf("Display D-Bus signals.\n\n");
 	bactl_print_usage("%s [OPTION]...", command);
 	printf("\nOptions:\n"
-			"  -h, --help\t\t\tShow this message and exit\n"
-			"  -p, --properties[=PROPS]\tShow PCM property changes\n"
-	);
+	       "  -h, --help\t\t\tShow this message and exit\n"
+	       "  -p, --properties[=PROPS]\tShow PCM property changes\n");
 }
 
-static int cmd_monitor_func(int argc, char *argv[]) {
+static int cmd_monitor_func(int argc, char * argv[]) {
 
 	int opt;
 	const char * opts = "hqvp::";
@@ -350,10 +350,10 @@ static int cmd_monitor_func(int argc, char *argv[]) {
 		if (bactl_parse_common_options(opt))
 			continue;
 		switch (opt) {
-		case 'h' /* --help */ :
+		case 'h' /* --help */:
 			usage(argv[0]);
 			return EXIT_SUCCESS;
-		case 'p' /* --properties[=PROPS] */ :
+		case 'p' /* --properties[=PROPS] */:
 			monitor_properties = true;
 			if (!parse_property_list(argv, optarg))
 				return EXIT_FAILURE;
@@ -374,24 +374,25 @@ static int cmd_monitor_func(int argc, char *argv[]) {
 	 * a pipe. */
 	setvbuf(stdout, NULL, _IOLBF, 0);
 
-	ba_dbus_connection_signal_match_add(&config.dbus,
-			config.dbus.ba_service, NULL, DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesAdded",
-			"path_namespace='/org/bluealsa'");
-	ba_dbus_connection_signal_match_add(&config.dbus,
-			config.dbus.ba_service, NULL, DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesRemoved",
-			"path_namespace='/org/bluealsa'");
+	ba_dbus_connection_signal_match_add(&config.dbus, config.dbus.ba_service, NULL,
+	                                    DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesAdded",
+	                                    "path_namespace='/org/bluealsa'");
+	ba_dbus_connection_signal_match_add(&config.dbus, config.dbus.ba_service, NULL,
+	                                    DBUS_INTERFACE_OBJECT_MANAGER, "InterfacesRemoved",
+	                                    "path_namespace='/org/bluealsa'");
 
 	char dbus_args[50];
 	snprintf(dbus_args, sizeof(dbus_args), "arg0='%s',arg2=''", config.dbus.ba_service);
-	ba_dbus_connection_signal_match_add(&config.dbus,
-			DBUS_SERVICE_DBUS, NULL, DBUS_INTERFACE_DBUS, "NameOwnerChanged", dbus_args);
+	ba_dbus_connection_signal_match_add(&config.dbus, DBUS_SERVICE_DBUS, NULL,
+	                                    DBUS_INTERFACE_DBUS, "NameOwnerChanged", dbus_args);
 	snprintf(dbus_args, sizeof(dbus_args), "arg0='%s',arg1=''", config.dbus.ba_service);
-	ba_dbus_connection_signal_match_add(&config.dbus,
-			DBUS_SERVICE_DBUS, NULL, DBUS_INTERFACE_DBUS, "NameOwnerChanged", dbus_args);
+	ba_dbus_connection_signal_match_add(&config.dbus, DBUS_SERVICE_DBUS, NULL,
+	                                    DBUS_INTERFACE_DBUS, "NameOwnerChanged", dbus_args);
 
 	if (monitor_properties)
 		ba_dbus_connection_signal_match_add(&config.dbus, config.dbus.ba_service, NULL,
-				DBUS_INTERFACE_PROPERTIES, "PropertiesChanged", "arg0='"BLUEALSA_INTERFACE_PCM"'");
+		                                    DBUS_INTERFACE_PROPERTIES, "PropertiesChanged",
+		                                    "arg0='"BLUEALSA_INTERFACE_PCM"'");
 
 	if (!dbus_connection_add_filter(config.dbus.conn, dbus_signal_handler, NULL, NULL)) {
 		cmd_print_error("Couldn't add D-Bus filter");

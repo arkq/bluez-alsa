@@ -22,8 +22,8 @@
 
 #include <bluetooth/bluetooth.h>
 #include <dbus/dbus.h>
-#include <readline/readline.h>
 #include <readline/history.h>
+#include <readline/readline.h>
 
 #include "shared/dbus-client.h"
 #include "shared/dbus-client-rfcomm.h"
@@ -35,20 +35,20 @@ static bool input_is_tty = true;
 static bool output_is_tty = true;
 static bool properties = false;
 
-static int path2hci(const char *path) {
+static int path2hci(const char * path) {
 	int id;
 	if ((path = strstr(path, "/hci")) == NULL ||
-			sscanf(path, "/hci%d/", &id) != 1)
+	    sscanf(path, "/hci%d/", &id) != 1)
 		return -1;
 	return id;
 }
 
-static int path2ba(const char *path, bdaddr_t *ba) {
+static int path2ba(const char * path, bdaddr_t * ba) {
 
 	unsigned int x[6];
 	if ((path = strstr(path, "/dev_")) == NULL ||
-			sscanf(&path[5], "%x_%x_%x_%x_%x_%x",
-				&x[5], &x[4], &x[3], &x[2], &x[1], &x[0]) != 6)
+	    sscanf(&path[5], "%x_%x_%x_%x_%x_%x",
+	           &x[5], &x[4], &x[3], &x[2], &x[1], &x[0]) != 6)
 		return -1;
 
 	for (size_t i = 0; i < 6; i++)
@@ -57,19 +57,19 @@ static int path2ba(const char *path, bdaddr_t *ba) {
 	return 0;
 }
 
-static char *strtrim(char *str) {
+static char * strtrim(char * str) {
 	while (isspace(*str))
 		str++;
 	if (*str == '\0')
 		return str;
-	char *end = &str[strlen(str) - 1];
+	char * end = &str[strlen(str) - 1];
 	while (end > str && isspace(*end))
 		end--;
 	end[1] = '\0';
 	return str;
 }
 
-static bool print_properties(struct ba_dbus_ctx *dbus_ctx, const char* path, DBusError *err) {
+static bool print_properties(struct ba_dbus_ctx * dbus_ctx, const char * path, DBusError * err) {
 
 	struct ba_rfcomm_props props = { 0 };
 	if (!ba_dbus_rfcomm_props_get(dbus_ctx, path, &props, err)) {
@@ -89,13 +89,13 @@ static bool print_properties(struct ba_dbus_ctx *dbus_ctx, const char* path, DBu
 	return true;
 }
 
-static char *build_rfcomm_command(char *buffer, size_t size, const char *cmd) {
+static char * build_rfcomm_command(char * buffer, size_t size, const char * cmd) {
 	bool at = strncmp(cmd, "AT", 2) == 0;
 	snprintf(buffer, size, "%s%s%s", at ? "" : "\r\n", cmd, at ? "\r" : "\r\n");
 	return buffer;
 }
 
-static void rl_callback_handler(char *line) {
+static void rl_callback_handler(char * line) {
 
 	if (line == NULL) {
 		rl_callback_handler_remove();
@@ -117,7 +117,7 @@ static void rl_callback_handler(char *line) {
 		add_history(line);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char * argv[]) {
 
 	int opt;
 	const char * opts = "hVB:p";
@@ -135,23 +135,23 @@ int main(int argc, char *argv[]) {
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
-		case 'h' /* --help */ :
+		case 'h' /* --help */:
 usage:
 			printf("Usage:\n"
-					"  %s [OPTION]... <DEVICE-PATH>\n"
-					"\nOptions:\n"
-					"  -h, --help\t\tprint this help and exit\n"
-					"  -V, --version\t\tprint version and exit\n"
-					"  -B, --dbus=NAME\tBlueALSA D-Bus service name suffix\n"
-					"  -p, --properties\tprint device properties and exit\n",
-					argv[0]);
+			       "  %s [OPTION]... <DEVICE-PATH>\n"
+			       "\nOptions:\n"
+			       "  -h, --help\t\tprint this help and exit\n"
+			       "  -V, --version\t\tprint version and exit\n"
+			       "  -B, --dbus=NAME\tBlueALSA D-Bus service name suffix\n"
+			       "  -p, --properties\tprint device properties and exit\n",
+			       argv[0]);
 			return EXIT_SUCCESS;
 
-		case 'V' /* --version */ :
+		case 'V' /* --version */:
 			printf("%s\n", PACKAGE_VERSION);
 			return EXIT_SUCCESS;
 
-		case 'B' /* --dbus=NAME */ :
+		case 'B' /* --dbus=NAME */:
 			snprintf(dbus_ba_service, sizeof(dbus_ba_service), BLUEALSA_SERVICE ".%s", optarg);
 			if (!dbus_validate_bus_name(dbus_ba_service, NULL)) {
 				error("Invalid BlueALSA D-Bus service name: %s", dbus_ba_service);
@@ -159,7 +159,7 @@ usage:
 			}
 			break;
 
-		case 'p' /* --properties */ :
+		case 'p' /* --properties */:
 			properties = true;
 			break;
 
@@ -175,7 +175,7 @@ usage:
 	bdaddr_t addr;
 
 	if ((hci_dev_id = path2hci(argv[optind])) == -1 ||
-			path2ba(argv[optind], &addr) == -1) {
+	    path2ba(argv[optind], &addr) == -1) {
 		error("Invalid BT device path: %s", argv[optind]);
 		return EXIT_FAILURE;
 	}
@@ -190,7 +190,7 @@ usage:
 
 	char rfcomm_path[128];
 	sprintf(rfcomm_path, "/org/bluealsa/hci%d/dev_%.2X_%.2X_%.2X_%.2X_%.2X_%.2X/rfcomm",
-			hci_dev_id, addr.b[5], addr.b[4], addr.b[3], addr.b[2], addr.b[1], addr.b[0]);
+	        hci_dev_id, addr.b[5], addr.b[4], addr.b[3], addr.b[2], addr.b[1], addr.b[0]);
 
 	if (properties) {
 		if (print_properties(&dbus_ctx, rfcomm_path, &err))
@@ -206,12 +206,12 @@ usage:
 
 	input_is_tty = isatty(fileno(stdin));
 	output_is_tty = isatty(fileno(stdout));
-	const char *prefix = "";
+	const char * prefix = "";
 	char prompt[32] = "";
 
 	if (input_is_tty) {
 		sprintf(prompt, "%.2X:%.2X:%.2X:%.2X:%.2X:%.2X> ",
-			addr.b[5], addr.b[4], addr.b[3], addr.b[2], addr.b[1], addr.b[0]);
+		        addr.b[5], addr.b[4], addr.b[3], addr.b[2], addr.b[1], addr.b[0]);
 		rl_bind_key('\t', rl_insert);
 		prefix = "> ";
 	}
@@ -259,7 +259,7 @@ usage:
 
 			buffer[ret] = '\0';
 
-			char *old_text = NULL;
+			char * old_text = NULL;
 			int old_point = 0;
 
 			if (output_is_tty) {

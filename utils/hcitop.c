@@ -14,8 +14,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <curses.h>
 #include <bsd/stdlib.h>
+#include <curses.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -44,7 +44,7 @@ static size_t get_devinfo(struct hci_dev_info di[HCI_MAX_DEV]) {
 	return num;
 }
 
-static unsigned int get_average_rate(unsigned int *array, size_t size) {
+static unsigned int get_average_rate(unsigned int * array, size_t size) {
 
 	/* at least two points are required */
 	if (size < 2)
@@ -72,7 +72,7 @@ static unsigned int get_average_rate(unsigned int *array, size_t size) {
 	return x + y / size;
 }
 
-static void sprint_hci_flags(char *str, unsigned int flags) {
+static void sprint_hci_flags(char * str, unsigned int flags) {
 
 	size_t i;
 
@@ -82,7 +82,7 @@ static void sprint_hci_flags(char *str, unsigned int flags) {
 	str[i] = '\0';
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char * argv[]) {
 
 	int opt;
 	const char * opts = "hVd:";
@@ -98,19 +98,19 @@ int main(int argc, char *argv[]) {
 
 	while ((opt = getopt_long(argc, argv, opts, longopts, NULL)) != -1)
 		switch (opt) {
-		case 'h' /* --help */ :
+		case 'h' /* --help */:
 			printf("usage: %s [ -d sec ]\n"
-					"  -h, --help\t\tprint this help and exit\n"
-					"  -V, --version\t\tprint version and exit\n"
-					"  -d, --delay=SEC\tdelay time interval\n",
-					argv[0]);
+			       "  -h, --help\t\tprint this help and exit\n"
+			       "  -V, --version\t\tprint version and exit\n"
+			       "  -d, --delay=SEC\tdelay time interval\n",
+			       argv[0]);
 			return EXIT_SUCCESS;
 
-		case 'V' /* --version */ :
+		case 'V' /* --version */:
 			printf("%s\n", PACKAGE_VERSION);
 			return EXIT_SUCCESS;
 
-		case 'd' /* --delay=SEC */ :
+		case 'd' /* --delay=SEC */:
 			delay_sec = atoi(optarg);
 			delay_msec = (int)((atof(optarg) - delay_sec) * 10) * 100;
 			if (delay_sec < 0 || delay_msec < 0 || (delay_sec == 0 && delay_msec == 0)) {
@@ -138,8 +138,8 @@ int main(int argc, char *argv[]) {
 
 	for (size_t ii = 1;; ii++) {
 
-		const char *template_top = "%-5s %4s %-17s %-9s %8s %8s %8s %8s";
-		const char *template_row = "%-5s %4s %17s %9s %8s %8s %8s %8s";
+		const char * template_top = "%-5s %4s %-17s %-9s %8s %8s %8s %8s";
+		const char * template_row = "%-5s %4s %17s %9s %8s %8s %8s %8s";
 
 		attron(A_REVERSE);
 		mvprintw(0, 0, template_top, "HCI", "BUS", "ADDR", "FLAGS", "RX", "TX", "RX/s", "TX/s");
@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
 			char addr[18];
 			ba2str(&devices[i].bdaddr, addr);
 
-			const char *bus = hci_dtypetostr(devices[i].type);
+			const char * bus = hci_dtypetostr(devices[i].type);
 
 			char flags[sizeof(hci_flags_map) / sizeof(*hci_flags_map) + 1];
 			sprint_hci_flags(flags, devices[i].flags);
@@ -183,7 +183,7 @@ int main(int argc, char *argv[]) {
 			humanize_number(tx_rate, sizeof(tx_rate), rate_tx, "B", HN_AUTOSCALE, 0);
 
 			mvprintw(i + 1, 0, template_row,
-					devices[i].name, bus, addr, flags, rx, tx, rx_rate, tx_rate);
+			         devices[i].name, bus, addr, flags, rx, tx, rx_rate, tx_rate);
 
 		}
 

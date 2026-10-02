@@ -9,8 +9,8 @@
 #include <stddef.h>
 
 #include <gio/gio.h>
-#include <glib-object.h>
 #include <glib.h>
+#include <glib-object.h>
 
 #include "ofono-iface.h"
 
@@ -40,7 +40,8 @@ static MockOfonoManager * manager_new(GDBusConnection * conn, const char * path)
 
 static gboolean mock_ofono_get_cards_handler(MockOfonoHandsfreeAudioManager * object,
 		GDBusMethodInvocation * invocation, G_GNUC_UNUSED void * userdata) {
-	mock_ofono_handsfree_audio_manager_complete_get_cards(object, invocation, g_variant_new("a(oa{sv})", NULL));
+	mock_ofono_handsfree_audio_manager_complete_get_cards(object, invocation,
+	                                                      g_variant_new("a(oa{sv})", NULL));
 	return TRUE;
 }
 
@@ -51,7 +52,8 @@ static gboolean mock_ofono_register_handler(MockOfonoHandsfreeAudioManager * obj
 	return TRUE;
 }
 
-static MockOfonoHandsfreeAudioManager * hf_audio_manager_new(GDBusConnection * conn, const char * path) {
+static MockOfonoHandsfreeAudioManager * hf_audio_manager_new(GDBusConnection * conn,
+		const char * path) {
 	MockOfonoHandsfreeAudioManager * hf_manager = mock_ofono_handsfree_audio_manager_skeleton_new();
 	g_signal_connect(hf_manager, "handle-get-cards", G_CALLBACK(mock_ofono_get_cards_handler), NULL);
 	g_signal_connect(hf_manager, "handle-register", G_CALLBACK(mock_ofono_register_handler), NULL);
