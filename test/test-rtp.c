@@ -9,6 +9,7 @@
 #endif
 
 #include <endian.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -22,18 +23,18 @@
 
 CK_START_TEST(test_rtp_a2dp_init) {
 
-	uint8_t buffer[RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 16];
+	uint8_t buffer[sizeof(rtp_header_t) + sizeof(rtp_media_header_t) + 16];
 	for (size_t i = 0; i < sizeof(buffer); i++)
 		buffer[i] = i;
 
-	rtp_header_t *header;
-	rtp_media_header_t *media;
-	uint8_t *payload;
+	rtp_header_t * header;
+	rtp_media_header_t * media;
+	uint8_t * payload;
 
 	payload = rtp_a2dp_init(buffer, &header, (void **)&media, sizeof(*media));
 	ck_assert_int_eq(header->paytype, 96);
 	ck_assert_int_eq(header->version, 2);
-	ck_assert_ptr_ne(payload, NULL);
+	ck_assert_ptr_nonnull(payload);
 	ck_assert_int_eq(payload[0], 13);
 
 } CK_END_TEST
@@ -44,18 +45,27 @@ CK_START_TEST(test_rtp_a2dp_get_payload) {
 	for (size_t i = 0; i < sizeof(buffer); i++)
 		buffer[i] = i;
 
-	rtp_header_t *header = (rtp_header_t *)buffer;
-	uint8_t *payload;
+	rtp_header_t * header = (rtp_header_t *)buffer;
+	uint8_t * payload;
+
+	/* Verify out-of-bounds read. */
+	ck_assert_ptr_null(rtp_a2dp_get_payload(header, 8));
+	ck_assert_int_eq(errno, EINVAL);
 
 #if ENABLE_PAYLOADCHECK
-	payload = rtp_a2dp_get_payload(header);
-	ck_assert_ptr_eq(payload, NULL);
+	/* Verify that RTP with invalid payload type is discarded. */
+	ck_assert_ptr_null(rtp_a2dp_get_payload(header, sizeof(buffer)));
+	ck_assert_int_eq(errno, EMEDIUMTYPE);
 #endif
 
 	header->paytype = 96;
-	payload = rtp_a2dp_get_payload(header);
-	ck_assert_ptr_ne(payload, NULL);
+	ck_assert_ptr_nonnull(payload = rtp_a2dp_get_payload(header, sizeof(buffer)));
 	ck_assert_int_eq(payload[0], 12);
+
+	header->cc = 12;
+	/* Verify out-of-bounds read when CSRC count is set. */
+	ck_assert_ptr_null(rtp_a2dp_get_payload(header, sizeof(buffer)));
+	ck_assert_int_eq(errno, EMSGSIZE);
 
 } CK_END_TEST
 

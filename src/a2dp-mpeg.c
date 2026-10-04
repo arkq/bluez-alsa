@@ -212,7 +212,7 @@ void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 	pthread_cleanup_push(PTHREAD_CLEANUP(ffb_free), &pcm);
 
 	const size_t mpeg_frame_pcm_samples = lame_get_framesize(handle);
-	const size_t rtp_headers_len = RTP_HEADER_LEN + sizeof(rtp_mpeg_audio_header_t);
+	const size_t rtp_headers_len = sizeof(rtp_header_t) + sizeof(rtp_mpeg_audio_header_t);
 	/* It is hard to tell the size of the buffer required, but empirical test
 	 * shows that 2KB should be sufficient for encoding. However, encoder flush
 	 * function requires a little bit more space. */
@@ -270,7 +270,7 @@ void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 		if (len > 0) {
 
-			size_t payload_len_max = t->mtu_write - RTP_HEADER_LEN - sizeof(*rtp_mpeg_audio_header);
+			size_t payload_len_max = t->mtu_write - sizeof(*rtp_header) - sizeof(*rtp_mpeg_audio_header);
 			size_t payload_len_total = len;
 			size_t payload_len = len;
 
@@ -283,7 +283,7 @@ void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 				rtp_mpeg_audio_header->offset = payload_len_total - payload_len;
 
 				ffb_rewind(&bt);
-				ffb_seek(&bt, RTP_HEADER_LEN + sizeof(*rtp_mpeg_audio_header) + chunk_len);
+				ffb_seek(&bt, sizeof(*rtp_header) + sizeof(*rtp_mpeg_audio_header) + chunk_len);
 
 				len = ffb_blen_out(&bt);
 				if ((len = io_bt_write(t_pcm, bt.data, len)) <= 0) {
@@ -299,14 +299,14 @@ void *a2dp_mp3_enc_thread(struct ba_transport_pcm *t_pcm) {
 					io.initiated = true;
 				}
 
-				/* account written payload only */
-				len -= RTP_HEADER_LEN + sizeof(*rtp_mpeg_audio_header);
+				/* Account written payload only. */
+				len -= sizeof(*rtp_header) + sizeof(*rtp_mpeg_audio_header);
 
-				/* break if the last part of the payload has been written */
+				/* Break if the last part of the payload has been written. */
 				if ((payload_len -= len) == 0)
 					break;
 
-				/* move rest of data to the beginning of the payload */
+				/* Move rest of data to the beginning of the payload. */
 				debug("Payload fragmentation: extra %zd bytes", payload_len);
 				memmove(rtp_payload, rtp_payload + len, payload_len);
 
@@ -432,10 +432,12 @@ void *a2dp_mpeg_dec_thread(struct ba_transport_pcm *t_pcm) {
 			goto fail;
 		}
 
-		const rtp_header_t *rtp_header = bt.data;
-		const rtp_mpeg_audio_header_t *rtp_mpeg_header;
-		if ((rtp_mpeg_header = rtp_a2dp_get_payload(rtp_header)) == NULL)
+		const rtp_header_t * rtp_header = bt.data;
+		const rtp_mpeg_audio_header_t * rtp_mpeg_header;
+		if ((rtp_mpeg_header = rtp_a2dp_get_payload(rtp_header, len)) == NULL) {
+			warn("Invalid RTP packet: %s", strerror(errno));
 			continue;
+		}
 
 		int missing_rtp_frames = 0;
 		rtp_state_sync_stream(&rtp, rtp_header, &missing_rtp_frames, NULL);

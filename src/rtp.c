@@ -1,13 +1,17 @@
 /*
  * BlueALSA - rtp.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
 #include "rtp.h"
-/* IWYU pragma: no_include "config.h" */
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
 
 #include <endian.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -26,23 +30,15 @@ static unsigned int rtp_convert_clock_rate(
 	return DIV_ROUND_UP((uint64_t)ticks * rate_to / (rate_from / 2), 2);
 }
 
-/**
- * Initialize RTP headers.
- *
- * @param s The memory area where the RTP headers will be initialized.
- * @param hdr The address where the pointer to the RTP header will be stored.
- * @param phdr The address where the pointer to the RTP payload header will
- *   be stored. This parameter might be NULL.
- * @param phdr_size The size of the RTP payload header.
- * @return This function returns the address of the RTP payload region. */
-void *rtp_a2dp_init(void *s, rtp_header_t **hdr, void **phdr, size_t phdr_size) {
+void * rtp_a2dp_init(
+		void * s, rtp_header_t ** hdr, void ** phdr, size_t phdr_size) {
 
-	rtp_header_t *header = *hdr = (rtp_header_t *)s;
-	memset(header, 0, RTP_HEADER_LEN + phdr_size);
+	rtp_header_t * header = *hdr = s;
+	memset(header, 0, sizeof(*header) + phdr_size);
 	header->paytype = 96;
 	header->version = 2;
 
-	uint8_t *data = (uint8_t *)&header->csrc[header->cc];
+	uint8_t * data = (uint8_t *)&header->csrc[header->cc];
 
 	if (phdr != NULL)
 		*phdr = data;
@@ -50,32 +46,28 @@ void *rtp_a2dp_init(void *s, rtp_header_t **hdr, void **phdr, size_t phdr_size) 
 	return data + phdr_size;
 }
 
-/**
- * Get A2DP RTP header payload data.
- *
- * @param hdr The pointer to data with RTP header.
- * @return On success, this function returns pointer to data just after
- *   the RTP header - RTP header payload. On failure, NULL is returned. */
-void *rtp_a2dp_get_payload(const rtp_header_t *hdr) {
+void * rtp_a2dp_get_payload(
+		const rtp_header_t * hdr,
+		size_t len) {
+
+	if (len < sizeof(*hdr))
+		return errno = EINVAL, NULL;
 
 #if ENABLE_PAYLOADCHECK
 	if (hdr->paytype < 96) {
 		warn("Unsupported RTP payload type: %u", hdr->paytype);
-		return NULL;
+		return errno = EMEDIUMTYPE, NULL;
 	}
 #endif
+
+	if (len < sizeof(*hdr) + hdr->cc * sizeof(uint32_t))
+		return errno = EMSGSIZE, NULL;
 
 	return (void *)&hdr->csrc[hdr->cc];
 }
 
-/**
- * Initialize RTP local state.
- *
- * @param rtp Address of the RTP state structure.
- * @param pcm_samplerate PCM audio sample rate used for driving RTP clock.
- * @param rtp_clockrate Desired clock rate of the RTP clock. */
 void rtp_state_init(
-		struct rtp_state *rtp,
+		struct rtp_state * rtp,
 		unsigned int pcm_samplerate,
 		unsigned int rtp_clockrate) {
 
@@ -90,11 +82,6 @@ void rtp_state_init(
 
 }
 
-/**
- * Generate new RTP frame.
- *
- * @param rtp The RTP state structure.
- * @param hdr The RTP header which will be updated. */
 void rtp_state_new_frame(
 		struct rtp_state *rtp,
 		rtp_header_t *hdr) {
@@ -107,20 +94,11 @@ void rtp_state_new_frame(
 
 }
 
-/**
- * Synchronize local RTP state with RTP stream.
- *
- * @param rtp The RTP state structure.
- * @param hdr The RTP header of received RTP frame.
- * @param missing_rtp_frames If not NULL, the number of missing RTP frames will
- *   be stored at the given address.
- * @param missing_pcm_frames If not NULL, the number of missing PCM frames will
- *   be stored at the given address. */
 void rtp_state_sync_stream(
-		struct rtp_state *rtp,
-		const rtp_header_t *hdr,
-		int *missing_rtp_frames,
-		int *missing_pcm_frames) {
+		struct rtp_state * rtp,
+		const rtp_header_t * hdr,
+		int * missing_rtp_frames,
+		int * missing_pcm_frames) {
 
 	uint16_t hdr_seq_number = be16toh(hdr->seq_number);
 	uint32_t hdr_timestamp = be32toh(hdr->timestamp);
@@ -132,10 +110,10 @@ void rtp_state_sync_stream(
 		return;
 	}
 
-	/* increment local RTP sequence number */
+	/* Increment local RTP sequence number. */
 	uint16_t expect_seq_number = ++rtp->seq_number;
 
-	/* check for missing RTP frames */
+	/* Check for missing RTP frames. */
 	if (missing_rtp_frames != NULL) {
 		if ((*missing_rtp_frames = hdr_seq_number - expect_seq_number) != 0) {
 			warn("Missing RTP packets [%u != %u]: %d",
@@ -144,10 +122,10 @@ void rtp_state_sync_stream(
 		}
 	}
 
-	/* check for missing PCM frames */
+	/* Check for missing PCM frames. */
 	if (missing_pcm_frames != NULL) {
 
-		/* calculate expected PCM frames based on local timestamp */
+		/* Calculate expected PCM frames based on local timestamp. */
 		const uint32_t timestamp = hdr_timestamp - rtp->ts_offset;
 		unsigned int expect_pcm_frames = rtp_convert_clock_rate(timestamp,
 				rtp->ts_rtp_clockrate, rtp->ts_pcm_samplerate);
@@ -161,13 +139,8 @@ void rtp_state_sync_stream(
 
 }
 
-/**
- * Update local RTP state.
- *
- * @param rtp The RTP state structure.
- * @param pcm_frames The number of transferred PCM frames. */
 void rtp_state_update(
-		struct rtp_state *rtp,
+		struct rtp_state * rtp,
 		unsigned int pcm_frames) {
 
 	rtp->ts_pcm_frames += pcm_frames;

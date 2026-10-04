@@ -1287,12 +1287,12 @@ CK_START_TEST(test_a2dp_lc3plus) {
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
-			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 300;
+			sizeof(rtp_header_t) + sizeof(rtp_media_header_t) + 300;
 		test_io(t1_pcm, t2_pcm, a2dp_lc3plus_enc_thread, a2dp_lc3plus_dec_thread, 4 * 1024);
 	}
 	else {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
-			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 300;
+			sizeof(rtp_header_t) + sizeof(rtp_media_header_t) + 300;
 		test_io(t1_pcm, t2_pcm, a2dp_lc3plus_enc_thread, test_io_thread_dump_bt, 2 * 1024);
 		test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, a2dp_lc3plus_dec_thread, 2 * 1024);
 	}
@@ -1321,12 +1321,12 @@ CK_START_TEST(test_a2dp_ldac) {
 
 	if (aging_duration) {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
-			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 990 + 6;
+			sizeof(rtp_header_t) + sizeof(rtp_media_header_t) + 990 + 6;
 		test_io(t1_pcm, t2_pcm, a2dp_ldac_enc_thread, a2dp_ldac_dec_thread, 4 * 1024);
 	}
 	else {
 		t1->mtu_read = t1->mtu_write = t2->mtu_read = t2->mtu_write =
-			RTP_HEADER_LEN + sizeof(rtp_media_header_t) + 660 + 6;
+			sizeof(rtp_header_t) + sizeof(rtp_media_header_t) + 660 + 6;
 		test_io(t1_pcm, t2_pcm, a2dp_ldac_enc_thread, test_io_thread_dump_bt, 2 * 1024);
 		test_io(t1_pcm, t2_pcm, test_io_thread_dump_pcm, a2dp_ldac_dec_thread, 2 * 1024);
 	}

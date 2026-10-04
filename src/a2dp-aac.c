@@ -279,7 +279,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 	const size_t aac_frame_pcm_samples = info.inputChannels * info.frameLength;
 	const size_t sample_size = BA_TRANSPORT_PCM_FORMAT_BYTES(t_pcm->format);
 	if (ffb_init(&pcm, aac_frame_pcm_samples, sample_size) == -1 ||
-			ffb_init_uint8_t(&bt, RTP_HEADER_LEN + info.maxOutBufBytes) == -1) {
+			ffb_init_uint8_t(&bt, sizeof(rtp_header_t) + info.maxOutBufBytes) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
 		goto fail_ffb;
 	}
@@ -346,7 +346,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 			if (out_args.numOutBytes > 0) {
 
-				size_t payload_len_max = t->mtu_write - RTP_HEADER_LEN;
+				size_t payload_len_max = t->mtu_write - sizeof(*rtp_header);
 				size_t payload_len = out_args.numOutBytes;
 
 				/* If the size of the RTP packet exceeds writing MTU, the RTP payload
@@ -361,7 +361,7 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 					rtp_state_new_frame(&rtp, rtp_header);
 
 					ffb_rewind(&bt);
-					ffb_seek(&bt, RTP_HEADER_LEN + chunk_len);
+					ffb_seek(&bt, sizeof(*rtp_header) + chunk_len);
 
 					ssize_t len = ffb_blen_out(&bt);
 					if ((len = io_bt_write(t_pcm, bt.data, len)) <= 0) {
@@ -377,14 +377,14 @@ void *a2dp_aac_enc_thread(struct ba_transport_pcm *t_pcm) {
 						io.initiated = true;
 					}
 
-					/* resend RTP header */
-					len -= RTP_HEADER_LEN;
+					/* Resend RTP header. */
+					len -= sizeof(*rtp_header);
 
-					/* break if there is no more payload data */
+					/* Break if there is no more payload data. */
 					if ((payload_len -= len) == 0)
 						break;
 
-					/* move the rest of data to the beginning of payload */
+					/* Move the rest of data to the beginning of payload. */
 					debug("AAC payload fragmentation: extra %zu bytes", payload_len);
 					memmove(rtp_payload, rtp_payload + len, payload_len);
 
@@ -488,10 +488,12 @@ void *a2dp_aac_dec_thread(struct ba_transport_pcm *t_pcm) {
 			goto fail;
 		}
 
-		const uint8_t *rtp_latm;
-		const rtp_header_t *rtp_header = bt.data;
-		if ((rtp_latm = rtp_a2dp_get_payload(rtp_header)) == NULL)
+		const uint8_t * rtp_latm;
+		const rtp_header_t * rtp_header = bt.data;
+		if ((rtp_latm = rtp_a2dp_get_payload(rtp_header, len)) == NULL) {
+			warn("Invalid RTP packet: %s", strerror(errno));
 			continue;
+		}
 
 		int missing_rtp_frames = 0;
 		rtp_state_sync_stream(&rtp, rtp_header, &missing_rtp_frames, NULL);

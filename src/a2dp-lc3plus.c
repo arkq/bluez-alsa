@@ -220,7 +220,7 @@ void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 	const size_t lc3plus_frame_pcm_samples = lc3plus_frame_pcm_frames * channels;
 	const size_t lc3plus_frame_len = lc3plus_enc_get_num_bytes(handle);
 
-	const size_t rtp_headers_len = RTP_HEADER_LEN + sizeof(rtp_media_header_t);
+	const size_t rtp_headers_len = sizeof(rtp_header_t) + sizeof(rtp_media_header_t);
 	const size_t mtu_write_payload_len = t->mtu_write - rtp_headers_len;
 
 	size_t ffb_pcm_len = lc3plus_frame_pcm_samples;
@@ -484,10 +484,12 @@ void *a2dp_lc3plus_dec_thread(struct ba_transport_pcm *t_pcm) {
 			goto fail;
 		}
 
-		const rtp_header_t *rtp_header = bt.data;
-		const rtp_media_header_t *rtp_media_header;
-		if ((rtp_media_header = rtp_a2dp_get_payload(rtp_header)) == NULL)
+		const rtp_header_t * rtp_header = bt.data;
+		const rtp_media_header_t * rtp_media_header;
+		if ((rtp_media_header = rtp_a2dp_get_payload(rtp_header, len)) == NULL) {
+			warn("Invalid RTP packet: %s", strerror(errno));
 			continue;
+		}
 
 		int missing_rtp_frames = 0;
 		int missing_pcm_frames = 0;

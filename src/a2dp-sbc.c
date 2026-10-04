@@ -156,7 +156,7 @@ void *a2dp_sbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 	/* Writing MTU should be big enough to contain RTP header, SBC payload
 	 * header and at least one SBC frame. In general, there is no constraint
 	 * for the MTU value, but the speed might suffer significantly. */
-	const size_t rtp_headers_len = RTP_HEADER_LEN + sizeof(rtp_media_header_t);
+	const size_t rtp_headers_len = sizeof(rtp_header_t) + sizeof(rtp_media_header_t);
 	const size_t mtu_write_payload_len = t->mtu_write - rtp_headers_len;
 	const size_t sbc_frame_len = sbc_get_frame_length(&sbc);
 
@@ -167,7 +167,7 @@ void *a2dp_sbc_enc_thread(struct ba_transport_pcm *t_pcm) {
 
 	if (mtu_write_payload_len < sbc_frame_len)
 		warn("Writing MTU too small for one single SBC frame: %zu < %zu",
-				t->mtu_write, RTP_HEADER_LEN + sizeof(rtp_media_header_t) + sbc_frame_len);
+				t->mtu_write, sizeof(rtp_header_t) + sizeof(rtp_media_header_t) + sbc_frame_len);
 
 	if (ffb_init_int16_t(&pcm, ffb_pcm_len) == -1 ||
 			ffb_init_uint8_t(&bt, t->mtu_write) == -1) {
@@ -350,10 +350,12 @@ void *a2dp_sbc_dec_thread(struct ba_transport_pcm *t_pcm) {
 			goto fail;
 		}
 
-		const rtp_header_t *rtp_header = bt.data;
-		const rtp_media_header_t *rtp_media_header;
-		if ((rtp_media_header = rtp_a2dp_get_payload(rtp_header)) == NULL)
+		const rtp_header_t * rtp_header = bt.data;
+		const rtp_media_header_t * rtp_media_header;
+		if ((rtp_media_header = rtp_a2dp_get_payload(rtp_header, len)) == NULL) {
+			warn("Invalid RTP packet: %s", strerror(errno));
 			continue;
+		}
 
 		int missing_rtp_frames = 0;
 		rtp_state_sync_stream(&rtp, rtp_header, &missing_rtp_frames, NULL);

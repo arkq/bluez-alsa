@@ -257,7 +257,7 @@ void *a2dp_lhdc_enc_thread(struct ba_transport_pcm *t_pcm) {
 	lhdcBT_set_max_bitrate(handle, lhdc_max_bitrate_index);
 
 	if (lhdcBT_init_encoder(handle, rate, lhdc_bit_depth, config.lhdc_quality, lhdc_dual_channel,
-				0, t->mtu_write - RTP_HEADER_LEN - sizeof(rtp_lhdc_media_header_t),
+				0, t->mtu_write - sizeof(rtp_header_t) - sizeof(rtp_lhdc_media_header_t),
 				lhdc_interval) == -1) {
 		error("Couldn't initialize LHDC encoder");
 		goto fail_init;
@@ -473,10 +473,12 @@ void *a2dp_lhdc_dec_thread(struct ba_transport_pcm *t_pcm) {
 			goto fail;
 		}
 
-		const rtp_header_t *rtp_header = bt.data;
-		const rtp_lhdc_media_header_t *rtp_lhdc_media_header;
-		if ((rtp_lhdc_media_header = rtp_a2dp_get_payload(rtp_header)) == NULL)
+		const rtp_header_t * rtp_header = bt.data;
+		const rtp_lhdc_media_header_t * rtp_lhdc_media_header;
+		if ((rtp_lhdc_media_header = rtp_a2dp_get_payload(rtp_header, len)) == NULL) {
+			warn("Invalid RTP packet: %s", strerror(errno));
 			continue;
+		}
 
 		int missing_rtp_frames = 0;
 		rtp_state_sync_stream(&rtp, rtp_header, &missing_rtp_frames, NULL);

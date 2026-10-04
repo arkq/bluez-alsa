@@ -129,7 +129,7 @@ void *a2dp_aptx_hd_enc_thread(struct ba_transport_pcm *t_pcm) {
 	const size_t aptx_frame_len = 2 * 3 * sizeof(uint8_t);
 	const size_t aptx_frame_pcm_samples = 4 * channels;
 
-	const size_t mtu_write_aptx_frames = (t->mtu_write - RTP_HEADER_LEN) / aptx_frame_len;
+	const size_t mtu_write_aptx_frames = (t->mtu_write - sizeof(rtp_header_t)) / aptx_frame_len;
 	if (ffb_init_int32_t(&pcm, aptx_frame_pcm_samples * mtu_write_aptx_frames) == -1 ||
 			ffb_init_uint8_t(&bt, t->mtu_write) == -1) {
 		error("Couldn't create data buffers: %s", strerror(errno));
@@ -286,10 +286,12 @@ void *a2dp_aptx_hd_dec_thread(struct ba_transport_pcm *t_pcm) {
 			goto fail;
 		}
 
-		const uint8_t *rtp_payload;
-		const rtp_header_t *rtp_header = bt.data;
-		if ((rtp_payload = rtp_a2dp_get_payload(rtp_header)) == NULL)
+		const uint8_t * rtp_payload;
+		const rtp_header_t * rtp_header = bt.data;
+		if ((rtp_payload = rtp_a2dp_get_payload(rtp_header, len)) == NULL) {
+			warn("Invalid RTP packet: %s", strerror(errno));
 			continue;
+		}
 
 		int missing_rtp_frames = 0;
 		rtp_state_sync_stream(&rtp, rtp_header, &missing_rtp_frames, NULL);

@@ -344,10 +344,12 @@ void *a2dp_ldac_dec_thread(struct ba_transport_pcm *t_pcm) {
 			goto fail;
 		}
 
-		const rtp_header_t *rtp_header = bt.data;
-		const rtp_media_header_t *rtp_media_header;
-		if ((rtp_media_header = rtp_a2dp_get_payload(rtp_header)) == NULL)
+		const rtp_header_t * rtp_header = bt.data;
+		const rtp_media_header_t * rtp_media_header;
+		if ((rtp_media_header = rtp_a2dp_get_payload(rtp_header, len)) == NULL) {
+			warn("Invalid RTP packet: %s", strerror(errno));
 			continue;
+		}
 
 		int missing_rtp_frames = 0;
 		rtp_state_sync_stream(&rtp, rtp_header, &missing_rtp_frames, NULL);

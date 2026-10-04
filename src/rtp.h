@@ -1,6 +1,6 @@
 /*
  * BlueALSA - rtp.h
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -36,12 +36,8 @@ typedef struct rtp_header {
 	uint16_t seq_number;
 	uint32_t timestamp;
 	uint32_t ssrc;
-	uint32_t csrc[16];
+	uint32_t csrc[];
 } __attribute__ ((packed)) rtp_header_t;
-
-/**
- * The length of the RTP header assuming that the `cc` field is set to zero. */
-#define RTP_HEADER_LEN (sizeof(rtp_header_t) - sizeof(((rtp_header_t *)0)->csrc))
 
 /**
  * Media payload header. */
@@ -82,8 +78,31 @@ typedef struct rtp_lhdc_media_header {
 	uint8_t seq_number;
 } __attribute__ ((packed)) rtp_lhdc_media_header_t;
 
-void *rtp_a2dp_init(void *s, rtp_header_t **hdr, void **phdr, size_t phdr_size);
-void *rtp_a2dp_get_payload(const rtp_header_t *hdr);
+/**
+ * Initialize RTP headers.
+ *
+ * @param s The memory area where the RTP headers will be initialized.
+ * @param hdr The address where the pointer to the RTP header will be stored.
+ * @param phdr The address where the pointer to the RTP payload header will
+ *   be stored. This parameter might be NULL.
+ * @param phdr_size The size of the RTP payload header.
+ * @return This function returns the address of the RTP payload region. */
+void * rtp_a2dp_init(
+		void * s,
+		rtp_header_t ** hdr,
+		void ** phdr,
+		size_t phdr_size);
+
+/**
+ * Get A2DP RTP header payload data.
+ *
+ * @param hdr The pointer to data with RTP header.
+ * @param len The total length of the RTP packet (header + payload).
+ * @return On success, this function returns pointer to data just after
+ *   the RTP header. On failure, NULL is returned. */
+void * rtp_a2dp_get_payload(
+		const rtp_header_t * hdr,
+		size_t len);
 
 /* Structure for storing local state
  * of the ongoing RTP transmission. */
@@ -104,23 +123,48 @@ struct rtp_state {
 
 };
 
+/**
+ * Initialize RTP local state.
+ *
+ * @param rtp Address of the RTP state structure.
+ * @param pcm_samplerate PCM audio sample rate used for driving RTP clock.
+ * @param rtp_clockrate Desired clock rate of the RTP clock. */
 void rtp_state_init(
-		struct rtp_state *rtp,
+		struct rtp_state * rtp,
 		unsigned int pcm_samplerate,
 		unsigned int rtp_clockrate);
 
+/**
+ * Generate new RTP frame.
+ *
+ * @param rtp The RTP state structure.
+ * @param hdr The RTP header which will be updated. */
 void rtp_state_new_frame(
-		struct rtp_state *rtp,
-		rtp_header_t *hdr);
+		struct rtp_state * rtp,
+		rtp_header_t * hdr);
 
+/**
+ * Synchronize local RTP state with RTP stream.
+ *
+ * @param rtp The RTP state structure.
+ * @param hdr The RTP header of received RTP frame.
+ * @param missing_rtp_frames If not NULL, the number of missing RTP frames will
+ *   be stored at the given address.
+ * @param missing_pcm_frames If not NULL, the number of missing PCM frames will
+ *   be stored at the given address. */
 void rtp_state_sync_stream(
-		struct rtp_state *rtp,
-		const rtp_header_t *hdr,
-		int *missing_rtp_frames,
-		int *missing_pcm_frames);
+		struct rtp_state * rtp,
+		const rtp_header_t * hdr,
+		int * missing_rtp_frames,
+		int * missing_pcm_frames);
 
+/**
+ * Update local RTP state.
+ *
+ * @param rtp The RTP state structure.
+ * @param pcm_frames The number of transferred PCM frames. */
 void rtp_state_update(
-		struct rtp_state *rtp,
+		struct rtp_state * rtp,
 		unsigned int pcm_frames);
 
 #endif
