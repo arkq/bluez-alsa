@@ -158,7 +158,21 @@ static void a2dp_lc3plus_dec_free(LC3PLUS_Dec *handle) {
 	free(handle);
 }
 
-static int a2dp_lc3plus_get_frame_dms(const a2dp_lc3plus_t *conf) {
+#if LC3PLUS_VERSION >= LC3PLUS_VERSION_INT(1, 8, 0)
+static LC3PLUS_FrameDuration a2dp_lc3plus_get_frame_dms(const a2dp_lc3plus_t * conf) {
+	switch (conf->frame_duration) {
+	default:
+		return LC3PLUS_FRAME_DURATION_UNDEFINED;
+	case LC3PLUS_FRAME_DURATION_025:
+		return LC3PLUS_FRAME_DURATION_2p5MS;
+	case LC3PLUS_FRAME_DURATION_050:
+		return LC3PLUS_FRAME_DURATION_5MS;
+	case LC3PLUS_FRAME_DURATION_100:
+		return LC3PLUS_FRAME_DURATION_10MS;
+	}
+}
+#else
+static int a2dp_lc3plus_get_frame_dms(const a2dp_lc3plus_t * conf) {
 	switch (conf->frame_duration) {
 	default:
 		return 0;
@@ -170,6 +184,7 @@ static int a2dp_lc3plus_get_frame_dms(const a2dp_lc3plus_t *conf) {
 		return 100;
 	}
 }
+#endif
 
 void *a2dp_lc3plus_enc_thread(struct ba_transport_pcm *t_pcm) {
 
