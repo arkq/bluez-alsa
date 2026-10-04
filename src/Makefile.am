@@ -4,26 +4,14 @@
 
 SUBDIRS = shared
 # Make sure that shared library is built before anything else.
-SUBDIRS += asound bluealsactl dumper
+SUBDIRS += asound bluealsactl dbus dumper
 
 bin_PROGRAMS = bluealsad
 noinst_LTLIBRARIES = libbluealsad.la
 
 dbusconfdir = @DBUS_CONF_DIR@
-dbusifacedir = @DBUS_IFACE_DIR@
 dbusbluealsauser = @BLUEALSAD_USER@
 dist_dbusconf_DATA = org.bluealsa.conf
-dist_dbusiface_DATA = dbus/org.bluealsa.xml
-
-BUILT_SOURCES = \
-	dbus/org.bluealsa.h \
-	dbus/org.bluealsa.c \
-	dbus/org.bluez.h \
-	dbus/org.bluez.c \
-	dbus/org.ofono.h \
-	dbus/org.ofono.c
-
-CODEGEN_DEFS =
 
 MOSTLYCLEANFILES = \
 	$(dist_dbusconf_DATA) \
@@ -50,8 +38,8 @@ libbluealsad_la_SOURCES = \
 	bluez.c \
 	codec-sbc.c \
 	dbus.c \
-	dbus/org.bluealsa.xml \
-	dbus/org.bluez.xml \
+	dbus/org.bluealsa.c \
+	dbus/org.bluez.c \
 	error.c \
 	hci.c \
 	io.c \
@@ -82,7 +70,6 @@ libbluealsad_la_SOURCES += \
 endif
 
 if ENABLE_ASHA
-CODEGEN_DEFS += --define=ENABLE_GATT
 libbluealsad_la_SOURCES += \
 	asha-g722.c \
 	asha.c \
@@ -113,7 +100,6 @@ libbluealsad_la_SOURCES += \
 endif
 
 if ENABLE_MIDI
-CODEGEN_DEFS += --define=ENABLE_GATT
 libbluealsad_la_SOURCES += \
 	bt-midi.c \
 	bt-advertising.c \
@@ -145,7 +131,7 @@ endif
 if ENABLE_OFONO
 libbluealsad_la_SOURCES += \
 	ofono.c \
-	dbus/org.ofono.xml
+	dbus/org.ofono.c
 endif
 
 if ENABLE_UPOWER
@@ -203,11 +189,3 @@ DBUSCONF_SUBS = \
 
 .conf.in.conf:
 	$(SED) -e '$(DBUSCONF_SUBS)' < $< > $@
-
-.xml.h:
-	$(srcdir)/dbus/dbus-codegen.py --output $@ $(CODEGEN_DEFS) \
-		--interface-info-header --interface-skeleton-header $<
-
-.xml.c:
-	$(srcdir)/dbus/dbus-codegen.py --output $@ $(CODEGEN_DEFS) \
-		--interface-info-body --interface-skeleton-body $<
