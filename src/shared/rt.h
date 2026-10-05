@@ -1,6 +1,6 @@
 /*
  * BlueALSA - rt.h
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -19,22 +19,24 @@
 #if HAVE_LIBBSD
 # include <bsd/sys/time.h> /* IWYU pragma: keep */
 #else
-# define timespecadd(ts_a, ts_b, dest) do { \
-		(dest)->tv_sec = (ts_a)->tv_sec + (ts_b)->tv_sec; \
-		(dest)->tv_nsec = (ts_a)->tv_nsec + (ts_b)->tv_nsec; \
-		if ((dest)->tv_nsec >= 1000000000L) { \
-			(dest)->tv_sec++; \
-			(dest)->tv_nsec -= 1000000000L; \
-		} \
-	} while (0)
-# define timespecsub(ts_a, ts_b, dest) do { \
-		(dest)->tv_sec = (ts_a)->tv_sec - (ts_b)->tv_sec; \
-		(dest)->tv_nsec = (ts_a)->tv_nsec - (ts_b)->tv_nsec; \
-		if ((dest)->tv_nsec < 0) { \
-			(dest)->tv_sec--; \
-			(dest)->tv_nsec += 1000000000L; \
-		} \
-	} while (0)
+static inline void timespecadd(
+		struct timespec * ts_a, struct timespec * ts_b, struct timespec * dest) {
+	dest->tv_sec = ts_a->tv_sec + ts_b->tv_sec;
+	dest->tv_nsec = ts_a->tv_nsec + ts_b->tv_nsec;
+	if (dest->tv_nsec >= 1000000000L) {
+		dest->tv_sec++;
+		dest->tv_nsec -= 1000000000L;
+	}
+}
+static inline void timespecsub(
+		struct timespec * ts_a, struct timespec * ts_b, struct timespec * dest) {
+	dest->tv_sec = ts_a->tv_sec - ts_b->tv_sec;
+	dest->tv_nsec = ts_a->tv_nsec - ts_b->tv_nsec;
+	if (dest->tv_nsec < 0) {
+		dest->tv_sec--;
+		dest->tv_nsec += 1000000000L;
+	}
+}
 #endif
 
 /**

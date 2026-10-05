@@ -147,14 +147,12 @@ void ba_adapter_unref(struct ba_adapter * a) {
 	free(a);
 }
 
-/**
- * Get features exposed via RFCOMM for HFP-AG. */
-unsigned int ba_adapter_get_hfp_features_ag(struct ba_adapter *a) {
+unsigned int ba_adapter_get_hfp_features_ag(const struct ba_adapter * a) {
 	unsigned int features =
 		HFP_AG_FEAT_REJECT |
 		HFP_AG_FEAT_ECS |
 		HFP_AG_FEAT_ECC;
-	if (BA_TEST_ESCO_SUPPORT(a)) {
+	if (ba_adapter_is_esco_supported(a)) {
 #if ENABLE_MSBC
 		if (config.hfp.codecs.msbc)
 			features |= HFP_AG_FEAT_CODEC;
@@ -168,15 +166,13 @@ unsigned int ba_adapter_get_hfp_features_ag(struct ba_adapter *a) {
 	return features;
 }
 
-/**
- * Get features exposed via RFCOMM for HFP-HF. */
-unsigned int ba_adapter_get_hfp_features_hf(struct ba_adapter *a) {
+unsigned int ba_adapter_get_hfp_features_hf(const struct ba_adapter * a) {
 	unsigned int features =
 		HFP_HF_FEAT_CLI |
 		HFP_HF_FEAT_VOLUME |
 		HFP_HF_FEAT_ECS |
 		HFP_HF_FEAT_ECC;
-	if (BA_TEST_ESCO_SUPPORT(a)) {
+	if (ba_adapter_is_esco_supported(a)) {
 #if ENABLE_MSBC
 		if (config.hfp.codecs.msbc)
 			features |= HFP_HF_FEAT_CODEC;

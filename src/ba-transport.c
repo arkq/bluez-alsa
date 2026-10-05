@@ -634,7 +634,7 @@ struct ba_transport *ba_transport_new_sco(
 	if (profile & BA_TRANSPORT_PROFILE_MASK_HFP &&
 			/* Check whether support for codecs other than the
 			 * CVSD is possible with the underlying adapter. */
-			BA_TEST_ESCO_SUPPORT(device->a)) {
+			ba_adapter_is_esco_supported(device->a)) {
 # if ENABLE_MSBC
 		if (config.hfp.codecs.msbc)
 			t->codec_id = HFP_CODEC_UNDEFINED;

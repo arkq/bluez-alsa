@@ -12,6 +12,7 @@
 #endif
 
 #include <pthread.h>
+#include <stdbool.h>
 
 #include <glib.h>
 
@@ -53,11 +54,17 @@ void ba_adapter_destroy(struct ba_adapter * a);
 void ba_adapter_unref(struct ba_adapter * a);
 
 /**
- * Macro for testing whether eSCO is supported. */
-#define BA_TEST_ESCO_SUPPORT(a) \
-	((a)->hci.features[2] & LMP_TRSP_SCO && (a)->hci.features[3] & LMP_ESCO)
+ * Get features exposed via RFCOMM for HFP-AG. */
+unsigned int ba_adapter_get_hfp_features_ag(const struct ba_adapter * a);
 
-unsigned int ba_adapter_get_hfp_features_ag(struct ba_adapter *a);
-unsigned int ba_adapter_get_hfp_features_hf(struct ba_adapter *a);
+/**
+ * Get features exposed via RFCOMM for HFP-HF. */
+unsigned int ba_adapter_get_hfp_features_hf(const struct ba_adapter * a);
+
+/**
+ * Check whether eSCO is supported. */
+static inline bool ba_adapter_is_esco_supported(const struct ba_adapter * a) {
+	return a->hci.features[2] & LMP_TRSP_SCO && a->hci.features[3] & LMP_ESCO;
+}
 
 #endif
