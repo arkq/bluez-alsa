@@ -58,8 +58,8 @@ CK_START_TEST(test_help) {
 
 	char output[1024];
 	/* Check if the end notice is printed. */
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Without given explicit MAC address any/empty MAC is assumed."), NULL);
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"Without given explicit MAC address any/empty MAC is assumed."));
 
 	spawn_close(&sp_ba_aplay, NULL);
 
@@ -88,22 +88,22 @@ CK_START_TEST(test_configuration) {
 
 	char output[1024];
 	/* Check selected configuration. */
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"  BlueALSA service: org.bluealsa.foo"), NULL);
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"  ALSA PCM device: TestPCM"), NULL);
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"  ALSA PCM buffer time: 10000 us"), NULL);
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"  ALSA PCM period time: 500 us"), NULL);
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"  ALSA mixer device: TestMixer"), NULL);
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"  ALSA mixer element: 'TestMixerName',1"), NULL);
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"  Bluetooth device(s): 12:34:56:78:90:AB"), NULL);
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"  Profile(s): A2DP, SCO"), NULL);
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"  BlueALSA service: org.bluealsa.foo"));
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"  ALSA PCM device: TestPCM"));
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"  ALSA PCM buffer time: 10000 us"));
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"  ALSA PCM period time: 500 us"));
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"  ALSA mixer device: TestMixer"));
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"  ALSA mixer element: 'TestMixerName',1"));
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"  Bluetooth device(s): 12:34:56:78:90:AB"));
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"  Profile(s): A2DP, SCO"));
 
 	spawn_terminate(&sp_ba_aplay, 0);
 	spawn_close(&sp_ba_aplay, NULL);
@@ -128,8 +128,8 @@ CK_START_TEST(test_list_devices) {
 				NULL), -1);
 
 	char output[1024];
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"hci11: 23:45:67:89:AB:CD [Speaker], trusted audio-card"), NULL);
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"hci11: 23:45:67:89:AB:CD [Speaker], trusted audio-card"));
 
 	spawn_close(&sp_ba_aplay, NULL);
 	spawn_terminate(&sp_ba_mock, 0);
@@ -153,8 +153,8 @@ CK_START_TEST(test_list_pcms) {
 				NULL), -1);
 
 	char output[1024];
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"bluealsa:DEV=23:45:67:89:AB:CD,PROFILE=sco,SRV=org.bluealsa.foo"), NULL);
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"bluealsa:DEV=23:45:67:89:AB:CD,PROFILE=sco,SRV=org.bluealsa.foo"));
 
 	spawn_close(&sp_ba_aplay, NULL);
 	spawn_terminate(&sp_ba_mock, 0);
@@ -179,10 +179,10 @@ CK_START_TEST(test_play_all) {
 	char output[1024];
 	/* Check if playback was started for both devices. It can happen in a
 	 * random order, so we are not waiting for a specific device here. */
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Used configuration for "), NULL);
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Used configuration for "), NULL);
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"Used configuration for "));
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"Used configuration for "));
 
 	spawn_terminate(&sp_ba_aplay, 0);
 	spawn_close(&sp_ba_aplay, NULL);
@@ -213,10 +213,10 @@ CK_START_TEST(test_play_single_audio) {
 	 * is not deterministic, so we are not waiting for a specific device. */
 
 #if DEBUG
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Starting IO worker "), NULL);
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Starting IO worker "), NULL);
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"Starting IO worker "));
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"Starting IO worker "));
 #endif
 
 	/* Let the playback run for a while and then terminate it. The timeout is
@@ -259,12 +259,12 @@ CK_START_TEST(test_play_mixer_setup) {
 				NULL), -1);
 
 	char output[1024];
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"ALSA mixer device: bluealsa:DEV=23:45:67:89:AB:CD"), NULL);
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"ALSA mixer device: bluealsa:DEV=23:45:67:89:AB:CD"));
 
 #if DEBUG
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Opening ALSA mixer: name=bluealsa:DEV=23:45:67:89:AB:CD elem=SCO index=0"), NULL);
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"Opening ALSA mixer: name=bluealsa:DEV=23:45:67:89:AB:CD elem=SCO index=0"));
 #endif
 
 	spawn_terminate(&sp_ba_aplay, 0);
@@ -301,22 +301,22 @@ CK_START_TEST(test_play_dbus_signals) {
 
 #if ENABLE_HFP_CODEC_SELECTION && DEBUG
 	/* With codec selection support, codec is not selected right away. */
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Skipping SCO with codec not selected"), NULL);
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"Skipping SCO with codec not selected"));
 #endif
 
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Used configuration for 12:34:56:78:9A:BC"), NULL);
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"Used configuration for 12:34:56:78:9A:BC"));
 	/* Check proper sample rate for CVSD codec. */
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"ALSA PCM sample rate: 8000 Hz"), NULL);
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"ALSA PCM sample rate: 8000 Hz"));
 
 #if ENABLE_MSBC
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Used configuration for 12:34:56:78:9A:BC"), NULL);
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"Used configuration for 12:34:56:78:9A:BC"));
 	/* Check proper sample rate for mSBC codec. */
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"ALSA PCM sample rate: 16000 Hz"), NULL);
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"ALSA PCM sample rate: 16000 Hz"));
 #endif
 
 	spawn_terminate(&sp_ba_aplay, 0);
@@ -343,13 +343,13 @@ CK_START_TEST(test_play_resampler) {
 				NULL), -1);
 
 	char output[1024];
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"Resampler method: sinc-fastest"), NULL);
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"Resampler method: sinc-fastest"));
 
 #if DEBUG
 	/* Check if the resampler is correctly configured. */
-	ck_assert_ptr_ne(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
-				"PCM sample rate conversion: 44100 Hz -> 44100.00 Hz"), NULL);
+	ck_assert_ptr_nonnull(fgetswith(output, sizeof(output), sp_ba_aplay.f_out,
+				"PCM sample rate conversion: 44100 Hz -> 44100.00 Hz"));
 #endif
 
 	spawn_terminate(&sp_ba_aplay, 0);

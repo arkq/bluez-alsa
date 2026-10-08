@@ -51,8 +51,8 @@ CK_START_TEST(test_g_dbus_bluez_object_path_to_bdaddr) {
 				"/org/bluez/dev_12_34_56_78_9A_BC/fd1", &addr), &addr);
 	ck_assert_int_eq(bacmp(&addr, &addr_ok), 0);
 
-	ck_assert_ptr_eq(g_dbus_bluez_object_path_to_bdaddr(
-				"/org/bluez/dev_12_34_56_78_9A_XX", &addr), NULL);
+	ck_assert_ptr_null(g_dbus_bluez_object_path_to_bdaddr(
+				"/org/bluez/dev_12_34_56_78_9A_XX", &addr));
 
 } CK_END_TEST
 
@@ -94,7 +94,7 @@ CK_START_TEST(test_nv_lookup_entry) {
 		{ 0 }
 	};
 
-	ck_assert_ptr_eq(nv_lookup_entry(entries, "invalid"), NULL);
+	ck_assert_ptr_null(nv_lookup_entry(entries, "invalid"));
 	ck_assert_ptr_eq(nv_lookup_entry(entries, "name2"), &entries[1]);
 
 } CK_END_TEST
@@ -107,7 +107,7 @@ CK_START_TEST(test_nv_name_from_int) {
 		{ 0 }
 	};
 
-	ck_assert_ptr_eq(nv_name_from_int(entries, 0), NULL);
+	ck_assert_ptr_null(nv_name_from_int(entries, 0));
 	ck_assert_str_eq(nv_name_from_int(entries, -42), "name2");
 
 } CK_END_TEST
@@ -120,7 +120,7 @@ CK_START_TEST(test_nv_name_from_uint) {
 		{ 0 }
 	};
 
-	ck_assert_ptr_eq(nv_name_from_uint(entries, 0), NULL);
+	ck_assert_ptr_null(nv_name_from_uint(entries, 0));
 	ck_assert_str_eq(nv_name_from_uint(entries, 0xFFEEDDCC), "name2");
 
 } CK_END_TEST
@@ -297,10 +297,10 @@ CK_START_TEST(test_ffb) {
 	ck_assert_ptr_eq(ffb_u8.data, ffb_u8.tail);
 
 	ffb_free(&ffb_u8);
-	ck_assert_ptr_eq(ffb_u8.data, NULL);
+	ck_assert_ptr_null(ffb_u8.data);
 
 	ffb_free(&ffb_16);
-	ck_assert_ptr_eq(ffb_16.data, NULL);
+	ck_assert_ptr_null(ffb_16.data);
 
 } CK_END_TEST
 

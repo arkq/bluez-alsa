@@ -39,10 +39,10 @@ static void register_finish(
 CK_START_TEST(test_bt_advertising) {
 
 	struct ba_adapter * adapter;
-	ck_assert_ptr_ne(adapter = ba_adapter_new(MOCK_ADAPTER_ID), NULL);
+	ck_assert_ptr_nonnull(adapter = ba_adapter_new(MOCK_ADAPTER_ID));
 
 	g_autoptr(BluetoothAdvertising) adv;
-	ck_assert_ptr_ne(adv = bluetooth_advertising_new(manager, "/adv", "0xFFFF", "Foo"), NULL);
+	ck_assert_ptr_nonnull(adv = bluetooth_advertising_new(manager, "/adv", "0xFFFF", "Foo"));
 
 	g_autoptr(GAsyncQueue) queue = g_async_queue_new();
 	bluetooth_advertising_register(adv, adapter, register_finish, queue);
@@ -62,10 +62,10 @@ CK_START_TEST(test_bt_advertising) {
 CK_START_TEST(test_bt_advertising_service_data) {
 
 	struct ba_adapter * adapter;
-	ck_assert_ptr_ne(adapter = ba_adapter_new(MOCK_ADAPTER_ID), NULL);
+	ck_assert_ptr_nonnull(adapter = ba_adapter_new(MOCK_ADAPTER_ID));
 
 	g_autoptr(BluetoothAdvertising) adv;
-	ck_assert_ptr_ne(adv = bluetooth_advertising_new(manager, "/adv", "0xFFFF", "Foo"), NULL);
+	ck_assert_ptr_nonnull(adv = bluetooth_advertising_new(manager, "/adv", "0xFFFF", "Foo"));
 
 	/* Verify what happens if service data is too big. */
 	uint8_t big[128] = { 0 };
@@ -85,7 +85,7 @@ CK_START_TEST(test_bt_advertising_service_data) {
 
 	/* Verify that the advertisement service data was set correctly. */
 	g_autoptr(GVariant) sd = mock_bluez_service_get_advertisement_service_data(bluez, "0xFFFF");
-	ck_assert_ptr_ne(sd, NULL);
+	ck_assert_ptr_nonnull(sd);
 
 	size_t size = 0;
 	const uint8_t * sd_bytes = g_variant_get_fixed_array(sd, &size, sizeof(uint8_t));

@@ -41,7 +41,7 @@ CK_START_TEST(test_a2dp_codec_to_string) {
 	ck_assert_str_eq(a2dp_codec_to_string(A2DP_CODEC_SBC), "SBC");
 	const uint32_t vendor_codec_id = A2DP_CODEC_VENDOR_ID(APTX_VENDOR_ID, APTX_CODEC_ID);
 	ck_assert_str_eq(a2dp_codec_to_string(vendor_codec_id), "aptX");
-	ck_assert_ptr_eq(a2dp_codec_to_string(A2DP_CODEC_UNDEFINED), NULL);
+	ck_assert_ptr_null(a2dp_codec_to_string(A2DP_CODEC_UNDEFINED));
 } CK_END_TEST
 
 CK_START_TEST(test_a2dp_codec_canonical_name) {
@@ -89,7 +89,7 @@ CK_START_TEST(test_a2dp_sep_ptr_cmp) {
 
 CK_START_TEST(test_a2dp_sep_lookup) {
 	ck_assert_ptr_eq(a2dp_sep_lookup(A2DP_SOURCE, A2DP_CODEC_SBC), &a2dp_sbc_source);
-	ck_assert_ptr_eq(a2dp_sep_lookup(A2DP_SOURCE, A2DP_CODEC_UNDEFINED), NULL);
+	ck_assert_ptr_null(a2dp_sep_lookup(A2DP_SOURCE, A2DP_CODEC_UNDEFINED));
 } CK_END_TEST
 
 CK_START_TEST(test_a2dp_get_vendor_codec_id) {
@@ -176,13 +176,13 @@ CK_START_TEST(test_a2dp_caps) {
 
 		/* Check whether all capability helpers are set. */
 
-		ck_assert_ptr_ne(sep->caps_helpers, NULL);
-		ck_assert_ptr_ne(sep->caps_helpers->intersect, NULL);
-		ck_assert_ptr_ne(sep->caps_helpers->has_stream, NULL);
-		ck_assert_ptr_ne(sep->caps_helpers->foreach_channel_mode, NULL);
-		ck_assert_ptr_ne(sep->caps_helpers->foreach_sample_rate, NULL);
-		ck_assert_ptr_ne(sep->caps_helpers->select_channel_mode, NULL);
-		ck_assert_ptr_ne(sep->caps_helpers->select_sample_rate, NULL);
+		ck_assert_ptr_nonnull(sep->caps_helpers);
+		ck_assert_ptr_nonnull(sep->caps_helpers->intersect);
+		ck_assert_ptr_nonnull(sep->caps_helpers->has_stream);
+		ck_assert_ptr_nonnull(sep->caps_helpers->foreach_channel_mode);
+		ck_assert_ptr_nonnull(sep->caps_helpers->foreach_sample_rate);
+		ck_assert_ptr_nonnull(sep->caps_helpers->select_channel_mode);
+		ck_assert_ptr_nonnull(sep->caps_helpers->select_sample_rate);
 
 		/* Run smoke tests for all capability helpers. */
 

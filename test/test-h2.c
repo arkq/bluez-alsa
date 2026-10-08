@@ -60,7 +60,7 @@ CK_START_TEST(test_h2_header_find) {
 	size_t len;
 
 	len = sizeof(*raw);
-	ck_assert_ptr_eq(h2_header_find(raw[0], &len), NULL);
+	ck_assert_ptr_null(h2_header_find(raw[0], &len));
 	ck_assert_int_eq(len, 1);
 
 	len = sizeof(*raw);
@@ -76,11 +76,11 @@ CK_START_TEST(test_h2_header_find) {
 	ck_assert_int_eq(len, sizeof(*raw) - 1);
 
 	len = sizeof(*raw);
-	ck_assert_ptr_eq(h2_header_find(raw[4], &len), NULL);
+	ck_assert_ptr_null(h2_header_find(raw[4], &len));
 	ck_assert_int_eq(len, 1);
 
 	len = sizeof(*raw);
-	ck_assert_ptr_eq(h2_header_find(raw[5], &len), NULL);
+	ck_assert_ptr_null(h2_header_find(raw[5], &len));
 	ck_assert_int_eq(len, 1);
 
 } CK_END_TEST

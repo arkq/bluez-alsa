@@ -67,14 +67,14 @@ static bool characteristic_acquire_write_callback(
 static BluetoothGATTApplication * gatt_application_new(void) {
 
 	g_autoptr(BluetoothGATTApplication) app;
-	ck_assert_ptr_ne(app = bluetooth_gatt_application_new("/app"), NULL);
+	ck_assert_ptr_nonnull(app = bluetooth_gatt_application_new("/app"));
 
 	g_autoptr(BluetoothGATTService) srv;
-	ck_assert_ptr_ne(srv = bluetooth_gatt_service_new("/service0", "0xFFFF", true), NULL);
+	ck_assert_ptr_nonnull(srv = bluetooth_gatt_service_new("/service0", "0xFFFF", true));
 	bluetooth_gatt_application_add_service(app, srv);
 
 	g_autoptr(BluetoothGATTCharacteristic) chr;
-	ck_assert_ptr_ne(chr = bluetooth_gatt_characteristic_new("/char0", "0xFFFF"), NULL);
+	ck_assert_ptr_nonnull(chr = bluetooth_gatt_characteristic_new("/char0", "0xFFFF"));
 	bluetooth_gatt_application_add_service_characteristic(app, srv, chr);
 
 	const char * const flags[] = { "read", "write", "notify", NULL };
@@ -95,7 +95,7 @@ CK_START_TEST(test_bt_gatt_application) {
 	/* Set the D-Bus connection for the GATT application. */
 	bluetooth_gatt_application_set_connection(app, tc_dbus_connection);
 	/* Verify that the object manager is created properly. */
-	ck_assert_ptr_ne(bluetooth_gatt_application_get_object_manager_server(app), NULL);
+	ck_assert_ptr_nonnull(bluetooth_gatt_application_get_object_manager_server(app));
 } CK_END_TEST
 
 static void register_finish(
@@ -109,7 +109,7 @@ static void register_finish(
 CK_START_TEST(test_bt_gatt_application_register) {
 
 	struct ba_adapter * adapter;
-	ck_assert_ptr_ne(adapter = ba_adapter_new(MOCK_ADAPTER_ID), NULL);
+	ck_assert_ptr_nonnull(adapter = ba_adapter_new(MOCK_ADAPTER_ID));
 
 	g_autoptr(BluetoothGATTApplication) app = gatt_application_new();
 	/* Set the D-Bus connection for the GATT application. */
@@ -134,7 +134,7 @@ CK_START_TEST(test_bt_gatt_application_register) {
 CK_START_TEST(test_bt_gatt_characteristic_callbacks) {
 
 	struct ba_adapter * adapter;
-	ck_assert_ptr_ne(adapter = ba_adapter_new(MOCK_ADAPTER_ID), NULL);
+	ck_assert_ptr_nonnull(adapter = ba_adapter_new(MOCK_ADAPTER_ID));
 
 	g_autoptr(BluetoothGATTApplication) app = gatt_application_new();
 	/* Set the D-Bus connection for the GATT application. */
@@ -155,13 +155,13 @@ CK_START_TEST(test_bt_gatt_characteristic_callbacks) {
 	/* Verify that the notify callback works as expected. */
 	notify_ch = mock_bluez_service_acquire_gatt_characteristic_notify_channel(bluez);
 	ck_assert_int_ne(characteristic_notify_fd, -1);
-	ck_assert_ptr_ne(notify_ch, NULL);
+	ck_assert_ptr_nonnull(notify_ch);
 
 	g_autoptr(GIOChannel) write_ch;
 	/* Verify that the write callback works as expected. */
 	write_ch = mock_bluez_service_acquire_gatt_characteristic_write_channel(bluez);
 	ck_assert_int_ne(characteristic_write_fd, -1);
-	ck_assert_ptr_ne(write_ch, NULL);
+	ck_assert_ptr_nonnull(write_ch);
 
 	ba_adapter_unref(adapter);
 

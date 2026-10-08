@@ -58,9 +58,9 @@ CK_START_TEST(test_help) {
 
 	char output[4096];
 
-	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"-q", "-v", "--help", NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output), "-q", "-v", "--help", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "-h, --help"));
 
 } CK_END_TEST
 
@@ -83,17 +83,16 @@ CK_START_TEST(test_status) {
 
 	char output[4096];
 
-	/* check printing help text */
-	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"status", "--help", NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+	/* Check printing help text. */
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output), "status", "--help", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "-h, --help"));
 
-	/* check default command */
-	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "Service: org.bluealsa"), NULL);
-	ck_assert_ptr_ne(strstr(output, "A2DP-source"), NULL);
-	ck_assert_ptr_ne(strstr(output, "HFP-AG"), NULL);
+	/* Check default command. */
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output), NULL), EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "Service: org.bluealsa"));
+	ck_assert_ptr_nonnull(strstr(output, "A2DP-source"));
+	ck_assert_ptr_nonnull(strstr(output, "HFP-AG"));
 
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
@@ -107,16 +106,15 @@ CK_START_TEST(test_list_services) {
 
 	char output[4096];
 
-	/* check printing help text */
-	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"list-services", "--help", NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+	/* Check printing help text. */
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output), "list-services", "--help", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "-h, --help"));
 
-	/* check service listing */
-	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"list-services",
-				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "org.bluealsa.test"), NULL);
+	/* Check service listing. */
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output), "list-services", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "org.bluealsa.test"));
 
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
@@ -133,30 +131,29 @@ CK_START_TEST(test_list_pcms) {
 
 	char output[4096];
 
-	/* check printing help text */
-	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"list-pcms", "--help", NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+	/* Check printing help text. */
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output), "list-pcms", "--help", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "-h, --help"));
 
-	/* check BlueALSA PCM listing */
-	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"--dbus=test", "--verbose", "list-pcms",
-				NULL), 0);
+	/* Check BlueALSA PCM listing. */
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output), "--dbus=test", "-v", "list-pcms", NULL),
+			EXIT_SUCCESS);
 
-	ck_assert_ptr_ne(strstr(output,
-				"/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsnk/source"), NULL);
-	ck_assert_ptr_ne(strstr(output,
-				"/org/bluealsa/hci11/dev_23_45_67_89_AB_CD/a2dpsnk/source"), NULL);
-	ck_assert_ptr_ne(strstr(output,
-				"/org/bluealsa/hci11/dev_23_45_67_89_AB_CD/hsphs/source"), NULL);
-	ck_assert_ptr_ne(strstr(output,
-				"/org/bluealsa/hci11/dev_23_45_67_89_AB_CD/hsphs/sink"), NULL);
+	ck_assert_ptr_nonnull(strstr(output,
+				"/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsnk/source"));
+	ck_assert_ptr_nonnull(strstr(output,
+				"/org/bluealsa/hci11/dev_23_45_67_89_AB_CD/a2dpsnk/source"));
+	ck_assert_ptr_nonnull(strstr(output,
+				"/org/bluealsa/hci11/dev_23_45_67_89_AB_CD/hsphs/source"));
+	ck_assert_ptr_nonnull(strstr(output,
+				"/org/bluealsa/hci11/dev_23_45_67_89_AB_CD/hsphs/sink"));
 
-	/* check verbose output */
-	ck_assert_ptr_ne(strstr(output,
-				"Device: /org/bluez/hci11/dev_12_34_56_78_9A_BC"), NULL);
-	ck_assert_ptr_ne(strstr(output,
-				"Device: /org/bluez/hci11/dev_23_45_67_89_AB_CD"), NULL);
+	/* Check verbose output. */
+	ck_assert_ptr_nonnull(strstr(output,
+				"Device: /org/bluez/hci11/dev_12_34_56_78_9A_BC"));
+	ck_assert_ptr_nonnull(strstr(output,
+				"Device: /org/bluez/hci11/dev_23_45_67_89_AB_CD"));
 
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
@@ -175,30 +172,29 @@ CK_START_TEST(test_info) {
 
 	char output[4096];
 
-	/* check printing help text */
-	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"info", "--help", NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+	/* Check printing help text. */
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output), "info", "--help", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "-h, --help"));
 
-	/* check not existing BlueALSA PCM path */
+	/* Check not existing BlueALSA PCM path. */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"info", "/org/bluealsa/hci11/dev_FF_FF_FF_FF_FF_FF/a2dpsrc/sink",
-				NULL), EXIT_FAILURE);
+				"info", "/org/bluealsa/hci11/dev_FF_FF_FF_FF_FF_FF/a2dpsrc/sink", NULL),
+			EXIT_FAILURE);
 
-	/* check BlueALSA PCM info */
+	/* Check BlueALSA PCM info. */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"info", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
-				"-v", "-v",
-				NULL), 0);
+				"info", "-v", "-v", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", NULL),
+			EXIT_SUCCESS);
 
-	ck_assert_ptr_ne(strstr(output,
-				"Device: /org/bluez/hci11/dev_12_34_56_78_9A_BC"), NULL);
-	ck_assert_ptr_ne(strstr(output,
-				"Transport: A2DP-source"), NULL);
-	ck_assert_ptr_ne(strstr(output,
-				"Selected codec:\n\tSBC:211502fa [channels: 2] [rate: 44100]"), NULL);
-	ck_assert_ptr_ne(strstr(output,
-				"ChannelMap: FL FR"), NULL);
+	ck_assert_ptr_nonnull(strstr(output,
+				"Device: /org/bluez/hci11/dev_12_34_56_78_9A_BC"));
+	ck_assert_ptr_nonnull(strstr(output,
+				"Transport: A2DP-source"));
+	ck_assert_ptr_nonnull(strstr(output,
+				"Selected codec:\n\tSBC:211502fa [channels: 2] [rate: 44100]"));
+	ck_assert_ptr_nonnull(strstr(output,
+				"ChannelMap: FL FR"));
 
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
@@ -215,43 +211,43 @@ CK_START_TEST(test_codec) {
 
 	char output[4096];
 
-	/* check printing help text */
-	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"codec", "--help", NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+	/* Check printing help text. */
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output), "codec", "--help", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "-h, --help"));
 
-	/* check BlueALSA PCM codec get/set */
+	/* Check BlueALSA PCM codec get/set. */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"-v", "codec", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/sink",
-				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "Available codecs: CVSD"), NULL);
+				"-v", "codec", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/sink", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "Available codecs: CVSD"));
 
 #if !ENABLE_HFP_CODEC_SELECTION
 	/* CVSD shall be pre-selected if codec selection is not supported. */
-	ck_assert_ptr_ne(strstr(output, "Selected codec: CVSD"), NULL);
+	ck_assert_ptr_nonnull(strstr(output, "Selected codec: CVSD"));
 #endif
 
 #if ENABLE_MSBC
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"codec", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/sink", "mSBC",
-				NULL), 0);
+				"codec", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/sink", "mSBC", NULL),
+			EXIT_SUCCESS);
 
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"codec", "-vf", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/sink",
-				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "Selected codec: mSBC"), NULL);
+				"codec", "-vf", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/sink", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "Selected codec: mSBC"));
 #endif
 
-	/* check selecting not available codec */
+	/* Check selecting not available codec. */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"codec", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/sink", "SBC",
-				NULL), EXIT_FAILURE);
+				"codec", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/sink", "SBC", NULL),
+			EXIT_FAILURE);
 
-	/* check selecting A2DP codec (with our mock BlueZ) */
+	/* Check selecting A2DP codec (with our mock BlueZ). */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
 				"codec", "-vf", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
-				"SBC:FF150255", "--channels=1", "--rate=44100",
-				NULL), EXIT_SUCCESS);
+				"SBC:FF150255", "--channels=1", "--rate=44100", NULL),
+			EXIT_SUCCESS);
 
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
@@ -267,28 +263,28 @@ CK_START_TEST(test_client_delay) {
 
 	char output[4096];
 
-	/* check printing help text */
-	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"client-delay", "--help", NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+	/* Check printing help text. */
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output), "client-delay", "--help", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "-h, --help"));
 
-	/* check default client delay */
+	/* Check default client delay. */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"client-delay", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsnk/source",
-				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "ClientDelay: 0.0 ms"), NULL);
+				"client-delay", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsnk/source", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "ClientDelay: 0.0 ms"));
 
-	/* check setting client delay */
+	/* Check setting client delay. */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"client-delay", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsnk/source", "-7.5",
-				NULL), 0);
+				"client-delay", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsnk/source", "-7.5", NULL),
+			EXIT_SUCCESS);
 
-	/* check that setting client delay does not affect delay */
+	/* Check that setting client delay does not affect delay. */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"info", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsnk/source",
-				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "ClientDelay: -7.5 ms"), NULL);
-	ck_assert_ptr_ne(strstr(output, "Delay: 0.0 ms"), NULL);
+				"info", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsnk/source", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "ClientDelay: -7.5 ms"));
+	ck_assert_ptr_nonnull(strstr(output, "Delay: 0.0 ms"));
 
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
@@ -304,61 +300,61 @@ CK_START_TEST(test_volume) {
 
 	char output[4096];
 
-	/* check printing help text */
-	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"mute", "--help", NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
-	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"soft-volume", "--help", NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
-	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"volume", "--help", NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+	/* Check printing help text. */
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output), "mute", "--help", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "-h, --help"));
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output), "soft-volume", "--help", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "-h, --help"));
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output), "volume", "--help", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "-h, --help"));
 
-	/* check default volume */
+	/* Check default volume. */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
-				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "Volume: 50 50"), NULL);
+				"volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "Volume: 50 50"));
 
-	/* check default mute */
+	/* Check default mute. */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"mute", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
-				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "Mute: off off"), NULL);
+				"mute", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "Mute: off off"));
 
-	/* check default soft-volume */
+	/* Check default soft-volume. */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"soft-volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
-				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "SoftVolume: false"), NULL);
+				"soft-volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "SoftVolume: false"));
 
-	/* check setting volume */
+	/* Check setting volume. */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "5", "5",
-				NULL), 0);
+				"volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "5", "5", NULL),
+			EXIT_SUCCESS);
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
-				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "Volume: 5 5"), NULL);
+				"volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "Volume: 5 5"));
 
-	/* check setting mute */
+	/* Check setting mute. */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"mute", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "off", "on",
-				NULL), 0);
+				"mute", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "off", "on", NULL),
+			EXIT_SUCCESS);
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"mute", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
-				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "Mute: off on"), NULL);
+				"mute", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "Mute: off on"));
 
-	/* check setting soft-volume */
+	/* Check setting soft-volume. */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"soft-volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "on",
-				NULL), 0);
+				"soft-volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", "on", NULL),
+			EXIT_SUCCESS);
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"soft-volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink",
-				NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "SoftVolume: true"), NULL);
+				"soft-volume", "/org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "SoftVolume: true"));
 
 	spawn_terminate(&sp_ba_mock, 0);
 	spawn_close(&sp_ba_mock, NULL);
@@ -377,48 +373,48 @@ CK_START_TEST(test_monitor) {
 
 	char output[4096];
 
-	/* check printing help text */
-	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"monitor", "--help", NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+	/* Check printing help text. */
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output), "monitor", "--help", NULL),
+			EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "-h, --help"));
 
-	/* check monitor command */
+	/* Check monitor command. */
 	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"monitor", "-v", "--properties=codec,volume",
-				NULL), 0);
+				"monitor", "-v", "--properties=codec,volume", NULL),
+			EXIT_SUCCESS);
 
 	/* notifications for service start/stop */
-	ck_assert_ptr_ne(strstr(output, "ServiceRunning org.bluealsa"), NULL);
-	ck_assert_ptr_ne(strstr(output, "ServiceStopped org.bluealsa"), NULL);
+	ck_assert_ptr_nonnull(strstr(output, "ServiceRunning org.bluealsa"));
+	ck_assert_ptr_nonnull(strstr(output, "ServiceStopped org.bluealsa"));
 
 	/* notifications for PCM add/remove */
-	ck_assert_ptr_ne(strstr(output,
-				"PCMAdded /org/bluealsa/hci11/dev_23_45_67_89_AB_CD/a2dpsrc/sink"), NULL);
-	ck_assert_ptr_ne(strstr(output,
-				"PCMRemoved /org/bluealsa/hci11/dev_23_45_67_89_AB_CD/a2dpsrc/sink"), NULL);
+	ck_assert_ptr_nonnull(strstr(output,
+				"PCMAdded /org/bluealsa/hci11/dev_23_45_67_89_AB_CD/a2dpsrc/sink"));
+	ck_assert_ptr_nonnull(strstr(output,
+				"PCMRemoved /org/bluealsa/hci11/dev_23_45_67_89_AB_CD/a2dpsrc/sink"));
 
 	/* notifications for RFCOMM add/remove (because HFP is enabled) */
-	ck_assert_ptr_ne(strstr(output,
-				"RFCOMMAdded /org/bluealsa/hci11/dev_12_34_56_78_9A_BC/rfcomm"), NULL);
-	ck_assert_ptr_ne(strstr(output,
-				"RFCOMMRemoved /org/bluealsa/hci11/dev_12_34_56_78_9A_BC/rfcomm"), NULL);
+	ck_assert_ptr_nonnull(strstr(output,
+				"RFCOMMAdded /org/bluealsa/hci11/dev_12_34_56_78_9A_BC/rfcomm"));
+	ck_assert_ptr_nonnull(strstr(output,
+				"RFCOMMRemoved /org/bluealsa/hci11/dev_12_34_56_78_9A_BC/rfcomm"));
 
 	/* check verbose output */
-	ck_assert_ptr_ne(strstr(output,
-				"Device: /org/bluez/hci11/dev_12_34_56_78_9A_BC"), NULL);
-	ck_assert_ptr_ne(strstr(output,
-				"Device: /org/bluez/hci11/dev_23_45_67_89_AB_CD"), NULL);
+	ck_assert_ptr_nonnull(strstr(output,
+				"Device: /org/bluez/hci11/dev_12_34_56_78_9A_BC"));
+	ck_assert_ptr_nonnull(strstr(output,
+				"Device: /org/bluez/hci11/dev_23_45_67_89_AB_CD"));
 
 	/* notifications for property changed */
-	ck_assert_ptr_ne(strstr(output,
-				"PropertyChanged /org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink Volume 54 54"), NULL);
-	ck_assert_ptr_ne(strstr(output,
-				"PropertyChanged /org/bluealsa/hci11/dev_23_45_67_89_AB_CD/a2dpsrc/sink Volume 84 84"), NULL);
+	ck_assert_ptr_nonnull(strstr(output,
+				"PropertyChanged /org/bluealsa/hci11/dev_12_34_56_78_9A_BC/a2dpsrc/sink Volume 54 54"));
+	ck_assert_ptr_nonnull(strstr(output,
+				"PropertyChanged /org/bluealsa/hci11/dev_23_45_67_89_AB_CD/a2dpsrc/sink Volume 84 84"));
 #if ENABLE_MSBC
-	ck_assert_ptr_ne(strstr(output,
-				"PropertyChanged /org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/sink Codec CVSD"), NULL);
-	ck_assert_ptr_ne(strstr(output,
-				"PropertyChanged /org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/source Codec CVSD"), NULL);
+	ck_assert_ptr_nonnull(strstr(output,
+				"PropertyChanged /org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/sink Codec CVSD"));
+	ck_assert_ptr_nonnull(strstr(output,
+				"PropertyChanged /org/bluealsa/hci11/dev_12_34_56_78_9A_BC/hfpag/source Codec CVSD"));
 #endif
 
 	spawn_terminate(&sp_ba_mock, 0);
@@ -434,10 +430,9 @@ CK_START_TEST(test_open) {
 				NULL), -1);
 
 	char output[4096];
-	/* check printing help text */
-	ck_assert_int_eq(run_bluealsactl(output, sizeof(output),
-				"open", "--help", NULL), 0);
-	ck_assert_ptr_ne(strstr(output, "-h, --help"), NULL);
+	/* Check printing help text. */
+	ck_assert_int_eq(run_bluealsactl(output, sizeof(output), "open", "--help", NULL), EXIT_SUCCESS);
+	ck_assert_ptr_nonnull(strstr(output, "-h, --help"));
 
 	char * bactl_in_argv[32] = {
 		bluealsactl_path, "open", "--hex",

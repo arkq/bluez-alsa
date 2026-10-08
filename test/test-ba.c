@@ -70,15 +70,14 @@ bool bluez_a2dp_set_configuration(const char *current_dbus_sep_path,
 
 CK_START_TEST(test_ba_adapter) {
 
-	struct ba_adapter *a;
-
-	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
+	struct ba_adapter * a;
+	ck_assert_ptr_nonnull(a = ba_adapter_new(0));
 	ck_assert_str_eq(a->hci.name, "hci0");
 
 	ba_adapter_unref(a);
-	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
+	ck_assert_ptr_null(ba_adapter_lookup(0));
 
-	ck_assert_ptr_ne(a = ba_adapter_new(5), NULL);
+	ck_assert_ptr_nonnull(a = ba_adapter_new(5));
 	ck_assert_int_eq(a->hci.dev_id, 5);
 	ck_assert_str_eq(a->hci.name, "hci5");
 
@@ -86,19 +85,18 @@ CK_START_TEST(test_ba_adapter) {
 	ba_adapter_unref(a);
 
 	ba_adapter_unref(a);
-	ck_assert_ptr_eq(ba_adapter_lookup(5), NULL);
+	ck_assert_ptr_null(ba_adapter_lookup(5));
 
 } CK_END_TEST
 
 CK_START_TEST(test_ba_device) {
 
-	struct ba_adapter *a;
-	struct ba_device *d;
+	struct ba_adapter * a;
+	ck_assert_ptr_nonnull(a = ba_adapter_new(0));
 
-	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
-
+	struct ba_device * d;
 	bdaddr_t addr = {{ 0x12, 0x34, 0x56, 0x78, 0x90, 0xAB }};
-	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+	ck_assert_ptr_nonnull(d = ba_device_new(a, &addr));
 
 	ba_adapter_unref(a);
 
@@ -111,23 +109,22 @@ CK_START_TEST(test_ba_device) {
 	ba_device_unref(d);
 
 	ba_device_unref(d);
-	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
+	ck_assert_ptr_null(ba_adapter_lookup(0));
 
 } CK_END_TEST
 
 CK_START_TEST(test_ba_transport) {
 
-	struct ba_adapter *a;
-	struct ba_device *d;
-	struct ba_transport *t;
-	bdaddr_t addr = { 0 };
+	struct ba_adapter * a;
+	ck_assert_ptr_nonnull(a = ba_adapter_new(0));
 
-	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
-	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+	struct ba_device * d;
+	ck_assert_ptr_nonnull(d = ba_device_new(a, BDADDR_ANY));
 	ck_assert_int_eq(storage_device_clear(d), 0);
 
-	ck_assert_ptr_ne(t = ba_transport_new_sco(d,
-				BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path", -1), NULL);
+	struct ba_transport * t;
+	ck_assert_ptr_nonnull(t = ba_transport_new_sco(d,
+				BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path", -1));
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);
@@ -141,24 +138,23 @@ CK_START_TEST(test_ba_transport) {
 	ba_transport_unref(t);
 
 	ba_transport_unref(t);
-	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
+	ck_assert_ptr_null(ba_adapter_lookup(0));
 
 } CK_END_TEST
 
 #if ENABLE_MIDI
 CK_START_TEST(test_ba_transport_midi) {
 
-	struct ba_adapter *a;
-	struct ba_device *d;
-	struct ba_transport *t;
-	bdaddr_t addr = { 0 };
+	struct ba_adapter * a;
+	ck_assert_ptr_nonnull(a = ba_adapter_new(0));
 
-	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
-	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+	struct ba_device * d;
+	ck_assert_ptr_nonnull(d = ba_device_new(a, BDADDR_ANY));
 	ck_assert_int_eq(storage_device_clear(d), 0);
 
-	ck_assert_ptr_ne(t = ba_transport_new_midi(d,
-				BA_TRANSPORT_PROFILE_MIDI, "/owner", "/path"), NULL);
+	struct ba_transport * t;
+	ck_assert_ptr_nonnull(t = ba_transport_new_midi(d,
+				BA_TRANSPORT_PROFILE_MIDI, "/owner", "/path"));
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);
@@ -167,48 +163,46 @@ CK_START_TEST(test_ba_transport_midi) {
 	ck_assert_int_eq(ba_transport_release(t), 0);
 
 	ba_transport_destroy(t);
-	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
+	ck_assert_ptr_null(ba_adapter_lookup(0));
 
 } CK_END_TEST
 #endif
 
 CK_START_TEST(test_ba_transport_sco_one_only) {
 
-	struct ba_adapter *a;
-	struct ba_device *d;
-	struct ba_transport *t_sco_hsp;
-	struct ba_transport *t_sco_hfp;
-	bdaddr_t addr = { 0 };
+	struct ba_adapter * a;
+	ck_assert_ptr_nonnull(a = ba_adapter_new(0));
 
-	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
-	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+	struct ba_device * d;
+	ck_assert_ptr_nonnull(d = ba_device_new(a, BDADDR_ANY));
 	ck_assert_int_eq(storage_device_clear(d), 0);
 
+	struct ba_transport * t_sco_hsp;
 	t_sco_hsp = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HSP_AG, "/owner", "/path/sco", -1);
-	ck_assert_ptr_ne(t_sco_hsp, NULL);
+	ck_assert_ptr_nonnull(t_sco_hsp);
 
+	struct ba_transport * t_sco_hfp;
 	t_sco_hfp = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1);
-	ck_assert_ptr_eq(t_sco_hfp, NULL);
+	ck_assert_ptr_null(t_sco_hfp);
 	ck_assert_int_eq(errno, EBUSY);
 
 	ba_transport_unref(t_sco_hsp);
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);
-	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
+	ck_assert_ptr_null(ba_adapter_lookup(0));
 
 } CK_END_TEST
 
 CK_START_TEST(test_ba_transport_sco_default_codec) {
 
-	struct ba_adapter *a;
-	struct ba_device *d;
-	struct ba_transport *t_sco;
-	bdaddr_t addr = { 0 };
+	struct ba_adapter * a;
+	ck_assert_ptr_nonnull(a = ba_adapter_new(0));
 
-	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
-	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+	struct ba_device * d;
+	ck_assert_ptr_nonnull(d = ba_device_new(a, BDADDR_ANY));
 
+	struct ba_transport * t_sco;
 	ck_assert_int_eq(storage_device_clear(d), 0);
 	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HSP_AG, "/owner", "/path/sco", -1);
 	ck_assert_int_eq(ba_transport_get_codec(t_sco), HFP_CODEC_CVSD);
@@ -240,7 +234,7 @@ CK_START_TEST(test_ba_transport_sco_default_codec) {
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);
-	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
+	ck_assert_ptr_null(ba_adapter_lookup(0));
 
 } CK_END_TEST
 
@@ -254,17 +248,16 @@ static void * cleanup_thread(struct ba_transport_pcm * t_pcm) {
 
 CK_START_TEST(test_ba_transport_threads_sync_termination) {
 
-	struct ba_adapter *a;
-	struct ba_device *d;
-	struct ba_transport *t_sco;
-	bdaddr_t addr = { 0 };
+	struct ba_adapter * a;
+	ck_assert_ptr_nonnull(a = ba_adapter_new(0));
 
-	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
-	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+	struct ba_device * d;
+	ck_assert_ptr_nonnull(d = ba_device_new(a, BDADDR_ANY));
 	ck_assert_int_eq(storage_device_clear(d), 0);
 
+	struct ba_transport * t_sco;
 	t_sco = ba_transport_new_sco(d, BA_TRANSPORT_PROFILE_HSP_AG, "/owner", "/path/sco", -1);
-	ck_assert_ptr_ne(t_sco, NULL);
+	ck_assert_ptr_nonnull(t_sco);
 
 	t_sco->bt_fd = 0;
 	t_sco->mtu_read = 48;
@@ -282,7 +275,7 @@ CK_START_TEST(test_ba_transport_threads_sync_termination) {
 	ba_adapter_unref(a);
 	ba_device_unref(d);
 	ba_transport_unref(t_sco);
-	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
+	ck_assert_ptr_null(ba_adapter_lookup(0));
 
 } CK_END_TEST
 
@@ -312,26 +305,26 @@ static error_code_t sep_transport_init(struct ba_transport * t) {
 
 CK_START_TEST(test_ba_transport_pcm_volume) {
 
-	struct ba_adapter *a;
-	struct ba_device *d;
-	struct ba_transport *t_a2dp;
-	struct ba_transport *t_sco;
-	bdaddr_t addr = { 0 };
+	struct ba_adapter * a;
+	ck_assert_ptr_nonnull(a = ba_adapter_new(0));
 
-	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
-	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+	struct ba_device * d;
+	ck_assert_ptr_nonnull(d = ba_device_new(a, BDADDR_ANY));
 	ck_assert_int_eq(storage_device_clear(d), 0);
 
 	struct a2dp_sep sep = {
 		.config = { .type = A2DP_SINK, .codec_id = A2DP_CODEC_SBC },
 		.transport_init = sep_transport_init };
 	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
-	ck_assert_ptr_ne(t_a2dp = ba_transport_new_a2dp(d,
-				BA_TRANSPORT_PROFILE_A2DP_SINK, "/owner", "/path/a2dp", &sep,
-				&configuration), NULL);
 
-	ck_assert_ptr_ne(t_sco = ba_transport_new_sco(d,
-				BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1), NULL);
+	struct ba_transport * t_a2dp;
+	ck_assert_ptr_nonnull(t_a2dp = ba_transport_new_a2dp(d,
+				BA_TRANSPORT_PROFILE_A2DP_SINK, "/owner", "/path/a2dp", &sep,
+				&configuration));
+
+	struct ba_transport * t_sco;
+	ck_assert_ptr_nonnull(t_sco = ba_transport_new_sco(d,
+				BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path/sco", -1));
 
 	ba_adapter_unref(a);
 	ba_device_unref(d);
@@ -351,7 +344,7 @@ CK_START_TEST(test_ba_transport_pcm_volume) {
 	ba_transport_unref(t_a2dp);
 	ba_transport_unref(t_sco);
 
-	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
+	ck_assert_ptr_null(ba_adapter_lookup(0));
 
 } CK_END_TEST
 
@@ -361,17 +354,16 @@ static int test_cascade_free_transport_unref(struct ba_transport *t) {
 
 CK_START_TEST(test_cascade_free) {
 
-	struct ba_adapter *a;
-	struct ba_device *d;
-	struct ba_transport *t;
-	bdaddr_t addr = { 0 };
+	struct ba_adapter * a;
+	ck_assert_ptr_nonnull(a = ba_adapter_new(0));
 
-	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
-	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+	struct ba_device * d;
+	ck_assert_ptr_nonnull(d = ba_device_new(a, BDADDR_ANY));
 	ck_assert_int_eq(storage_device_clear(d), 0);
 
-	ck_assert_ptr_ne(t = ba_transport_new_sco(d,
-				BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path", -1), NULL);
+	struct ba_transport * t;
+	ck_assert_ptr_nonnull(t = ba_transport_new_sco(d,
+				BA_TRANSPORT_PROFILE_HFP_AG, "/owner", "/path", -1));
 
 	t->bt_fd = 0;  /* release() is called for acquired transport only */
 	t->release = test_cascade_free_transport_unref;
@@ -380,7 +372,7 @@ CK_START_TEST(test_cascade_free) {
 	ba_adapter_destroy(a);
 
 	/* verify that cascade free was performed */
-	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
+	ck_assert_ptr_null(ba_adapter_lookup(0));
 
 } CK_END_TEST
 
@@ -394,28 +386,29 @@ CK_START_TEST(test_storage) {
 		"Volume=-5600;-4800;\n"
 		"Mute=false;true;\n";
 
-	FILE *f;
-	ck_assert_ptr_ne(f = fopen(storage_path, "w"), NULL);
+	FILE * f;
+	ck_assert_ptr_nonnull(f = fopen(storage_path, "w"));
 	ck_assert_int_eq(fwrite(storage_data, strlen(storage_data), 1, f), 1);
 	ck_assert_int_eq(fclose(f), 0);
-
-	struct ba_adapter *a;
-	struct ba_device *d;
-	struct ba_transport *t;
 
 	bdaddr_t addr;
 	str2ba(&storage_path[sizeof(TEST_BLUEALSA_STORAGE_DIR)], &addr);
 
-	ck_assert_ptr_ne(a = ba_adapter_new(0), NULL);
-	ck_assert_ptr_ne(d = ba_device_new(a, &addr), NULL);
+	struct ba_adapter * a;
+	ck_assert_ptr_nonnull(a = ba_adapter_new(0));
+
+	struct ba_device * d;
+	ck_assert_ptr_nonnull(d = ba_device_new(a, &addr));
 
 	struct a2dp_sep sep = {
 		.config = { .type = A2DP_SINK, .codec_id = A2DP_CODEC_SBC },
 		.transport_init = sep_transport_init };
 	a2dp_sbc_t configuration = { .channel_mode = SBC_CHANNEL_MODE_STEREO };
-	ck_assert_ptr_ne(t = ba_transport_new_a2dp(d,
+
+	struct ba_transport * t;
+	ck_assert_ptr_nonnull(t = ba_transport_new_a2dp(d,
 				BA_TRANSPORT_PROFILE_A2DP_SINK, "/owner", "/path", &sep,
-				&configuration), NULL);
+				&configuration));
 
 	/* This test does not link with A2DP functionality,
 	 * so the PCM has to be initialized manually. */
@@ -438,10 +431,10 @@ CK_START_TEST(test_storage) {
 	ba_adapter_unref(a);
 	ba_device_unref(d);
 	ba_transport_unref(t);
-	ck_assert_ptr_eq(ba_adapter_lookup(0), NULL);
+	ck_assert_ptr_null(ba_adapter_lookup(0));
 
 	char buffer[1024] = { 0 };
-	ck_assert_ptr_ne(f = fopen(storage_path, "r"), NULL);
+	ck_assert_ptr_nonnull(f = fopen(storage_path, "r"));
 	ck_assert_int_gt(fread(buffer, 1, sizeof(buffer), f), 0);
 	ck_assert_int_eq(fclose(f), 0);
 

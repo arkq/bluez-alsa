@@ -1061,8 +1061,8 @@ CK_START_TEST(reference_playback_device_unplug) {
 	struct pollfd pfds[4];
 	unsigned short revents;
 
-	/* this test needs user-defined PCM device */
-	ck_assert_ptr_ne(pcm_device, NULL);
+	/* This test needs user-defined PCM device. */
+	ck_assert_ptr_nonnull(pcm_device);
 
 	ck_assert_int_eq(test_pcm_open(NULL, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
@@ -1105,7 +1105,7 @@ CK_START_TEST(ba_test_playback_device_unplug) {
 	struct spawn_process sp_ba_mock;
 	snd_pcm_t *pcm = NULL;
 
-	ck_assert_ptr_eq(pcm_device, NULL);
+	ck_assert_ptr_null(pcm_device);
 	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
 	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
 				&buffer_time, &period_time), 0);
