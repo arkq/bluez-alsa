@@ -21,6 +21,7 @@ SPDX-License-Identifier: MIT
 - fix configuration for Android 13 A2DP Opus codec
 - improved ALSA PCM support for A2DP-sink, HFP-HF and HSP-HS
 - use the alsa-lib API for logging in the ALSA plugins
+- support multiple client connections to each Bluetooth PCM
 
 ## bluez-alsa v4.3.1 (2024-08-30)
 
