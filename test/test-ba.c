@@ -49,9 +49,10 @@ int midi_transport_alsa_seq_delete(struct ba_transport *t) { (void)t; return 0; 
 int midi_transport_start(struct ba_transport *t) { (void)t; return 0; }
 int midi_transport_stop(struct ba_transport *t) { (void)t; return 0; }
 
-void *ba_rfcomm_thread(struct ba_transport *t) { (void)t; return 0; }
-int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
-	debug("%s: %p", __func__, (void *)pcm); (void)pcm; return 0; }
+void * ba_rfcomm_thread(struct ba_transport * t) { (void)t; return 0; }
+error_code_t bluealsa_dbus_pcm_register(struct ba_transport_pcm * pcm) {
+	debug("%s: %p", __func__, (void *)pcm); (void)pcm;
+	return ERROR_CODE_OK; }
 void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 	debug("%s: %p %#x", __func__, (void *)pcm, mask); (void)pcm; (void)mask; }
 void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {

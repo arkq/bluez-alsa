@@ -290,7 +290,9 @@ void bluetooth_gatt_application_register(
 		void * userdata) {
 
 	g_autoptr(GDBusConnection) conn = g_dbus_object_manager_server_get_connection(app->manager);
-	g_autoptr(GDBusMessage) msg = g_dbus_message_new_method_call(BLUEZ_SERVICE,
+
+	g_autoptr(GDBusMessage) msg;
+	msg = g_dbus_message_new_method_call(BLUEZ_SERVICE,
 			adapter->bluez_dbus_path, BLUEZ_IFACE_GATT_MANAGER, "RegisterApplication");
 	g_dbus_message_set_body(msg, g_variant_new("(oa{sv})", app->path, NULL));
 

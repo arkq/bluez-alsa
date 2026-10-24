@@ -6,9 +6,9 @@ runs:
   using: composite
   steps:
     - name: Install DEB Packages
-      uses: awalsh128/cache-apt-pkgs-action@v1
+      uses: tecolicom/actions-use-apt-tools@v1
       with:
-        packages: >
+        tools: >
           bear
           check
           iwyu
@@ -23,7 +23,7 @@ runs:
           liblc3-dev
           libmp3lame-dev
           libmpg123-dev
-          libncurses5-dev
+          libncurses-dev
           libopenaptx-dev
           libopus-dev
           libreadline-dev

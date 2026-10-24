@@ -1,5 +1,5 @@
 # BlueALSA - Makefile.am
-# SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+# SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
 # SPDX-License-Identifier: MIT
 
 ACLOCAL_AMFLAGS = -I m4
@@ -16,10 +16,12 @@ endif
 if WITH_COVERAGE
 cov:
 	$(MAKE) $(AM_MAKEFLAGS) check CFLAGS="$(CFLAGS) -O0 --coverage -fprofile-update=atomic"
-	$(LCOV) --capture -d src -d utils -d test \
+	$(LCOV) --capture --parallel \
+		--directory src --directory utils --directory test \
 		--exclude '$(abs_builddir)/*' --exclude '/usr/*' --exclude '*/test/*' \
-		--output-file lcov.info
-	$(GENHTML) -o coverage -t $(PACKAGE) lcov.info
+		--branch-coverage --output-file lcov.info
+	$(GENHTML) -o coverage -t $(PACKAGE) \
+		--branch-coverage lcov.info
 clean-local:
 	find $(top_builddir) -name "*.gcno" -delete
 	find $(top_builddir) -name "*.gcda" -delete

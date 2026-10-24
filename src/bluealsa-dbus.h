@@ -17,6 +17,7 @@
 #include "ba-rfcomm.h"
 #include "ba-device.h"
 #include "ba-transport-pcm.h"
+#include "error.h"
 
 #define BA_DBUS_PCM_UPDATE_FORMAT           (1 << 0)
 #define BA_DBUS_PCM_UPDATE_CHANNELS         (1 << 1)
@@ -38,12 +39,12 @@ GVariant *ba_variant_new_device_battery(const struct ba_device *d);
 
 void bluealsa_dbus_register(void);
 
-int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm);
-void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask);
-void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm);
+error_code_t bluealsa_dbus_pcm_register(struct ba_transport_pcm * pcm);
+void bluealsa_dbus_pcm_update(struct ba_transport_pcm * pcm, unsigned int mask);
+void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm * pcm);
 
-int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r);
-void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask);
-void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm *r);
+error_code_t bluealsa_dbus_rfcomm_register(struct ba_rfcomm * r);
+void bluealsa_dbus_rfcomm_update(struct ba_rfcomm * r, unsigned int mask);
+void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm * r);
 
 #endif

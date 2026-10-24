@@ -122,16 +122,18 @@ CK_START_TEST(test_controls_battery) {
 
 	ck_assert_int_eq(snd_ctl_elem_list_get_used(elems), 5);
 
-	/* battery control element shall be last */
-	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 4), "23:45:67:89:AB:CD | Battery Playback Volume");
+	/* Battery control element shall be last. */
+	ck_assert_str_eq(snd_ctl_elem_list_get_name(elems, 4),
+			"23:45:67:89:AB:CD | Battery Playback Volume");
 
 	snd_ctl_elem_value_t *elem;
 	snd_ctl_elem_value_alloca(&elem);
 	snd_ctl_elem_value_set_numid(elem, snd_ctl_elem_list_get_numid(elems, 4));
 
 	ck_assert_int_eq(snd_ctl_elem_read(ctl, elem), 0);
-	ck_assert_int_eq(snd_ctl_elem_value_get_integer(elem, 0), 75);
-	/* battery control element is read-only */
+	/* Battery level is set to 50% by the BlueZ mock service. */
+	ck_assert_int_eq(snd_ctl_elem_value_get_integer(elem, 0), 50);
+	/* Battery control element is read-only. */
 	ck_assert_int_eq(snd_ctl_elem_write(ctl, elem), -EINVAL);
 
 	snd_ctl_elem_list_free_space(elems);
@@ -527,16 +529,17 @@ CK_START_TEST(test_notifications) {
 #endif
 
 	/* Processed events:
-	 * - 0 removes; 2 new elems (12:34:... A2DP)
-	 * - 4 updates per new A2DP (updated delay and volume)
-	 * - 2 removes; 4 new elems (12:34:... A2DP, 23:45:... A2DP)
-	 * - 4 updates per new A2DP (updated delay and volume)
-	 * - 4 removes; 7 new elems (2x A2DP, SCO playback, battery)
-	 * - 7 removes; 9 new elems (2x A2DP, SCO playback/capture, battery)
+	 * - 0 removes; 2 adds (12:34:... A2DP)
+	 * - 4 updates for new A2DP (updated delay and volume)
+	 * - 2 removes; 4 adds (12:34:... A2DP, 23:45:... A2DP)
+	 * - 4 updates for new A2DP (updated delay and volume)
+	 * - 4 removes; 7 adds (2x A2DP, SCO playback, battery)
+	 * - 7 removes; 9 adds (2x A2DP, SCO playback/capture, battery)
+	 * - 2 updates for battery (charge and health)
 	 * - 4 updates per codec (SCO codec updates if codec selection is supported)
 	 */
 	size_t expected_events =
-		(0 + 2) + 4 + (2 + 4) + 4 + (4 + 7) + (7 + 9) + events_update_codec;
+		(0 + 2) + 4 + (2 + 4) + 4 + (4 + 7) + (7 + 9) + 2 + events_update_codec;
 
 	/* XXX: It is possible that the battery element (RFCOMM D-Bus path) will not
 	 *      be exported in time. In such case, the number of events will be less
@@ -544,10 +547,9 @@ CK_START_TEST(test_notifications) {
 	 *      addition and less by another 1 when the path is not available during
 	 *      the capture SCO addition. We shall account for this in the test, as
 	 *      it is not an error. */
-	int result = events == expected_events ||
-					events == expected_events - 2 ||
-					events == expected_events - 3;
-	ck_assert_int_eq(result, 1);
+	ck_assert_int_eq(events == expected_events ||
+			events == expected_events - 2 ||
+			events == expected_events - 3, true);
 
 	snd_ctl_event_free(event);
 	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, ctl), 0);

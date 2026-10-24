@@ -173,23 +173,17 @@ bool g_dbus_connection_emit_properties_changed(GDBusConnection *conn,
 char * g_dbus_get_unique_name_sync(GDBusConnection * conn,
 		const char * service) {
 
-	GDBusMessage * msg = g_dbus_message_new_method_call(service, "/",
+	g_autoptr(GDBusMessage) msg;
+	msg = g_dbus_message_new_method_call(service, "/",
 			DBUS_IFACE_INTROSPECTABLE, "Introspect");
 
-	bool ok = true;
-	GDBusMessage * rep;
+	g_autoptr(GDBusMessage) rep;
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, 1000, NULL, NULL, NULL)) == NULL ||
 			g_dbus_message_get_message_type(rep) == G_DBUS_MESSAGE_TYPE_ERROR)
-		ok = false;
+		return NULL;
 
-	char * name = ok ? g_strdup(g_dbus_message_get_sender(rep)) : NULL;
-
-	if (rep != NULL)
-		g_object_unref(rep);
-	g_object_unref(msg);
-
-	return name;
+	return g_strdup(g_dbus_message_get_sender(rep));
 }
 
 /**
@@ -205,26 +199,18 @@ char * g_dbus_get_unique_name_sync(GDBusConnection * conn,
 GVariantIter * g_dbus_get_managed_objects_sync(GDBusConnection * conn,
 		const char * service, const char * path, GError ** error) {
 
-	GDBusMessage *msg = NULL, *rep = NULL;
-	GVariantIter *objects = NULL;
-
+	g_autoptr(GDBusMessage) msg;
 	msg = g_dbus_message_new_method_call(service, path,
 			DBUS_IFACE_OBJECT_MANAGER, "GetManagedObjects");
 
+	g_autoptr(GDBusMessage) rep;
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL ||
 			g_dbus_message_to_gerror(rep, error))
-		goto fail;
+		return NULL;
 
+	GVariantIter * objects = NULL;
 	g_variant_get(g_dbus_message_get_body(rep), "(a{oa{sa{sv}}})", &objects);
-
-fail:
-
-	if (msg != NULL)
-		g_object_unref(msg);
-	if (rep != NULL)
-		g_object_unref(rep);
-
 	return objects;
 }
 
@@ -243,26 +229,18 @@ GVariantIter * g_dbus_get_properties_sync(GDBusConnection * conn,
 		const char * service, const char * path, const char * interface,
 		GError ** error) {
 
-	GVariantIter * properties = NULL;
-
-	GDBusMessage * msg = g_dbus_message_new_method_call(service, path,
-			DBUS_IFACE_PROPERTIES, "GetAll");
+	g_autoptr(GDBusMessage) msg;
+	msg = g_dbus_message_new_method_call(service, path, DBUS_IFACE_PROPERTIES, "GetAll");
 	g_dbus_message_set_body(msg, g_variant_new("(s)", interface));
 
-	GDBusMessage * rep;
+	g_autoptr(GDBusMessage) rep;
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL ||
 			g_dbus_message_to_gerror(rep, error))
-		goto fail;
+		return NULL;
 
+	GVariantIter * properties = NULL;
 	g_variant_get(g_dbus_message_get_body(rep), "(a{sv})", &properties);
-
-fail:
-
-	g_object_unref(msg);
-	if (rep != NULL)
-		g_object_unref(rep);
-
 	return properties;
 }
 
@@ -280,14 +258,13 @@ void g_dbus_get_property(GDBusConnection * conn, const char * service,
 		const char * path, const char * interface, const char * property,
 		GAsyncReadyCallback callback, void * userdata) {
 
-	GDBusMessage * msg = g_dbus_message_new_method_call(service, path,
-			DBUS_IFACE_PROPERTIES, "Get");
+	g_autoptr(GDBusMessage) msg;
+	msg = g_dbus_message_new_method_call(service, path, DBUS_IFACE_PROPERTIES, "Get");
 	g_dbus_message_set_body(msg, g_variant_new("(ss)", interface, property));
 
 	g_dbus_connection_send_message_with_reply(conn, msg,
 			G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, callback, userdata);
 
-	g_object_unref(msg);
 }
 
 /**
@@ -302,19 +279,14 @@ void g_dbus_get_property(GDBusConnection * conn, const char * service,
 GVariant * g_dbus_get_property_finish(GDBusConnection * conn,
 		GAsyncResult * result, GError ** error) {
 
-	GVariant * value = NULL;
-
-	GDBusMessage * rep;
+	g_autoptr(GDBusMessage) rep;
 	if ((rep = g_dbus_connection_send_message_with_reply_finish(conn,
 				result, error)) == NULL ||
 			g_dbus_message_to_gerror(rep, error))
-		goto fail;
+		return NULL;
 
+	GVariant * value = NULL;
 	g_variant_get(g_dbus_message_get_body(rep), "(v)", &value);
-
-fail:
-	if (rep != NULL)
-		g_object_unref(rep);
 	return value;
 }
 
@@ -333,25 +305,15 @@ bool g_dbus_set_property_sync(GDBusConnection * conn, const char * service,
 		const char * path, const char * interface, const char * property,
 		const GVariant * value, GError ** error) {
 
-	bool rv = false;
-
-	GDBusMessage * msg = g_dbus_message_new_method_call(service, path,
-			DBUS_IFACE_PROPERTIES, "Set");
+	g_autoptr(GDBusMessage) msg;
+	msg = g_dbus_message_new_method_call(service, path, DBUS_IFACE_PROPERTIES, "Set");
 	g_dbus_message_set_body(msg, g_variant_new("(ssv)", interface, property, value));
 
-	GDBusMessage * rep;
+	g_autoptr(GDBusMessage) rep;
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(conn, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL ||
 			g_dbus_message_to_gerror(rep, error))
-		goto fail;
+		return false;
 
-	rv = true;
-
-fail:
-
-	g_object_unref(msg);
-	if (rep != NULL)
-		g_object_unref(rep);
-
-	return rv;
+	return true;
 }

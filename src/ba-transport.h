@@ -25,6 +25,7 @@
 #include "ba-device.h"
 #include "ba-transport-pcm.h"
 #include "bluez.h"
+#include "error.h"
 #include "shared/bluetooth-a2dp.h"
 #include "shared/bluetooth-asha.h"
 #include "shared/bluetooth-midi.h"
@@ -298,12 +299,12 @@ static inline struct ba_transport * ba_transport_ref(
 void ba_transport_destroy(struct ba_transport * t);
 void ba_transport_unref(struct ba_transport * t);
 
-int ba_transport_select_codec_a2dp(
-		struct ba_transport *t,
-		const struct a2dp_sep_config *remote_sep_cfg,
-		const void *configuration);
-int ba_transport_select_codec_sco(
-		struct ba_transport *t,
+error_code_t ba_transport_select_codec_a2dp(
+		struct ba_transport * t,
+		const struct a2dp_sep_config * remote_sep_cfg,
+		const void * configuration);
+error_code_t ba_transport_select_codec_sco(
+		struct ba_transport * t,
 		uint8_t codec_id);
 
 uint32_t ba_transport_get_codec(

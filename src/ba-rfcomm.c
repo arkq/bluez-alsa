@@ -1702,19 +1702,20 @@ struct ba_rfcomm *ba_rfcomm_new(struct ba_transport *sco, int fd) {
 
 	pthread_cond_init(&r->codec_selection_cond, NULL);
 
+	r->ba_dbus_path = g_strdup_printf("%s/rfcomm", sco->d->ba_dbus_path);
+	/* Register the interface before starting the thread, because
+	 * the RFCOMM socket might already have some pending data. */
+	bluealsa_dbus_rfcomm_register(r);
+
 	if ((err = pthread_create(&r->thread, NULL, PTHREAD_FUNC(rfcomm_thread), r)) != 0) {
 		error("Couldn't create RFCOMM thread: %s", strerror(err));
 		r->thread = config.main_thread;
 		goto fail;
 	}
 
-	const char *name = "ba-rfcomm";
+	const char * name = "ba-rfcomm";
 	pthread_setname_np(r->thread, name);
-	debug("Created new RFCOMM thread [%s]: %s",
-			name, ba_transport_debug_name(sco));
-
-	r->ba_dbus_path = g_strdup_printf("%s/rfcomm", sco->d->ba_dbus_path);
-	bluealsa_dbus_rfcomm_register(r);
+	debug("Created new RFCOMM thread [%s]: %s", name, ba_transport_debug_name(sco));
 
 	return r;
 

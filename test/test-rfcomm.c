@@ -30,6 +30,7 @@
 #include "ba-transport-pcm.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
+#include "error.h"
 #include "fixtures.h"
 #include "shared/bluetooth-hfp.h"
 #include "shared/log.h"
@@ -58,10 +59,10 @@ int storage_device_save(const struct ba_device *d) { (void)d; return 0; }
 int storage_pcm_data_sync(struct ba_transport_pcm *pcm) { (void)pcm; return 0; }
 int storage_pcm_data_update(const struct ba_transport_pcm *pcm) { (void)pcm; return 0; }
 
-int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
+error_code_t bluealsa_dbus_pcm_register(struct ba_transport_pcm * pcm) {
 	debug("%s: %p", __func__, (void *)pcm);
 	pcm->ba_dbus_exported = true;
-	return 0; }
+	return ERROR_CODE_OK; }
 void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 	debug("%s: %p %#x", __func__, (void *)pcm, mask); (void)pcm;
 	pthread_mutex_lock(&dbus_update_mtx);
@@ -71,8 +72,9 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 	pthread_cond_signal(&dbus_update_cond); }
 void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
 	debug("%s: %p", __func__, (void *)pcm); (void)pcm; }
-int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r) {
-	debug("%s: %p", __func__, (void *)r); (void)r; return 0; }
+error_code_t bluealsa_dbus_rfcomm_register(struct ba_rfcomm * r) {
+	debug("%s: %p", __func__, (void *)r); (void)r;
+	return ERROR_CODE_OK; }
 void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
 	debug("%s: %p %#x", __func__, (void *)r, mask); (void)r;
 	pthread_mutex_lock(&dbus_update_mtx);
@@ -172,13 +174,15 @@ CK_START_TEST(test_rfcomm_hsp_hs) {
 } CK_END_TEST
 
 #if ENABLE_HFP_CODEC_SELECTION
-static void *test_rfcomm_hfp_ag_switch_codecs(void *userdata) {
-	struct ba_transport *sco = userdata;
+static void * test_rfcomm_hfp_ag_switch_codecs(void * userdata) {
+	struct ba_transport * sco = userdata;
 	pthread_mutex_lock(&sco->codec_select_client_mtx);
-	ck_assert_int_eq(ba_transport_select_codec_sco(sco, HFP_CODEC_CVSD), 0);
+	ck_assert_int_eq(ba_transport_select_codec_sco(sco, HFP_CODEC_CVSD), ERROR_CODE_OK);
+	/* Test the fast path (the test code will fail otherwise). */
+	ck_assert_int_eq(ba_transport_select_codec_sco(sco, HFP_CODEC_CVSD), ERROR_CODE_OK);
 	/* The test code rejects first codec selection request for mSBC. */
-	ck_assert_int_eq(ba_transport_select_codec_sco(sco, HFP_CODEC_MSBC), -1);
-	ck_assert_int_eq(ba_transport_select_codec_sco(sco, HFP_CODEC_MSBC), 0);
+	ck_assert_int_eq(ba_transport_select_codec_sco(sco, HFP_CODEC_MSBC), ERROR_SYSTEM(EIO));
+	ck_assert_int_eq(ba_transport_select_codec_sco(sco, HFP_CODEC_MSBC), ERROR_CODE_OK);
 	pthread_mutex_unlock(&sco->codec_select_client_mtx);
 	return NULL;
 }

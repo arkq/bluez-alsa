@@ -85,18 +85,17 @@ static int midi_watch_read_ble_midi(
 		void * userdata) {
 
 	struct ba_transport * t = userdata;
-	GError * err = NULL;
 	uint8_t data[512];
 	long encoded;
 	size_t len;
 	int rv;
 
+	g_autoptr(GError) err = NULL;
 	switch (g_io_channel_read_chars(ch, (char *)data, sizeof(data), &len, &err)) {
 	case G_IO_STATUS_AGAIN:
 		return G_SOURCE_CONTINUE;
 	case G_IO_STATUS_ERROR:
 		error("BLE-MIDI link read error: %s", err->message);
-		g_error_free(err);
 		return G_SOURCE_CONTINUE;
 	case G_IO_STATUS_NORMAL:
 		break;

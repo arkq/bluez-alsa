@@ -295,22 +295,22 @@ fail:
 
 static int transport_acquire_bt_media(struct ba_transport * t) {
 
-	GDBusMessage * msg, * rep;
-	GError * err = NULL;
 	int fd = -1;
 
-	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
-			t->bluez_dbus_path, BLUEZ_IFACE_MEDIA_TRANSPORT,
+	g_autoptr(GDBusMessage) msg;
+	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, t->bluez_dbus_path,
+			BLUEZ_IFACE_MEDIA_TRANSPORT,
 			t->media.state == BLUEZ_MEDIA_TRANSPORT_STATE_PENDING ? "TryAcquire" : "Acquire");
 
+	g_autoptr(GDBusMessage) rep;
+	g_autoptr(GError) err = NULL;
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL ||
 			g_dbus_message_to_gerror(rep, &err))
 		goto fail;
 
 	uint16_t mtu_read, mtu_write;
-	g_variant_get(g_dbus_message_get_body(rep), "(hqq)",
-			NULL, &mtu_read, &mtu_write);
+	g_variant_get(g_dbus_message_get_body(rep), "(hqq)", NULL, &mtu_read, &mtu_write);
 
 	GUnixFDList * fd_list = g_dbus_message_get_unix_fd_list(rep);
 	if ((fd = g_unix_fd_list_get(fd_list, 0, &err)) == -1)
@@ -334,22 +334,13 @@ static int transport_acquire_bt_media(struct ba_transport * t) {
 	debug("Media transport socket MTU [%d]: read=%u write=%u", fd, mtu_read, mtu_write);
 
 fail:
-	g_object_unref(msg);
-	if (rep != NULL)
-		g_object_unref(rep);
-	if (err != NULL) {
+	if (err != NULL)
 		error("Couldn't acquire media transport: %s", err->message);
-		g_error_free(err);
-	}
 
 	return fd;
 }
 
 static int transport_release_bt_media(struct ba_transport * t) {
-
-	GDBusMessage * msg = NULL, * rep = NULL;
-	GError * err = NULL;
-	int ret = -1;
 
 	/* If the state is idle, it means that either transport was not acquired, or
 	 * was released by the BlueZ. In both cases there is no point in a explicit
@@ -359,24 +350,25 @@ static int transport_release_bt_media(struct ba_transport * t) {
 
 		debug("Releasing media transport: %d", t->bt_fd);
 
-		msg = g_dbus_message_new_method_call(t->bluez_dbus_owner, t->bluez_dbus_path,
-				BLUEZ_IFACE_MEDIA_TRANSPORT, "Release");
+		g_autoptr(GDBusMessage) msg;
+		msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
+				t->bluez_dbus_path, BLUEZ_IFACE_MEDIA_TRANSPORT, "Release");
 
+		g_autoptr(GDBusMessage) rep;
+		g_autoptr(GError) err = NULL;
 		if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 						G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL ||
 				g_dbus_message_to_gerror(rep, &err)) {
-			if (err->code == G_DBUS_ERROR_NO_REPLY ||
-					err->code == G_DBUS_ERROR_SERVICE_UNKNOWN ||
-					err->code == G_DBUS_ERROR_UNKNOWN_OBJECT) {
-				/* If BlueZ is already terminated (or is terminating) or BlueZ
-				 * transport interface was already removed (ClearConfiguration
-				 * call), we won't receive success response. Do not treat such
-				 * a case as an error - omit logging. */
-				g_error_free(err);
-				err = NULL;
+			/* If BlueZ is already terminated (or is terminating) or BlueZ
+			 * transport interface was already removed (ClearConfiguration
+			 * call), we won't receive success response. Do not treat such
+			 * a case as an error - omit logging. */
+			if (err->code != G_DBUS_ERROR_NO_REPLY &&
+					err->code != G_DBUS_ERROR_SERVICE_UNKNOWN &&
+					err->code != G_DBUS_ERROR_UNKNOWN_OBJECT) {
+				error("Couldn't release media transport: %s", err->message);
+				return -1;
 			}
-			else
-				goto fail;
 		}
 		else {
 
@@ -394,21 +386,10 @@ static int transport_release_bt_media(struct ba_transport * t) {
 
 	debug("Closing media transport: %d", t->bt_fd);
 
-	ret = 0;
 	close(t->bt_fd);
 	t->bt_fd = -1;
 
-fail:
-	if (msg != NULL)
-		g_object_unref(msg);
-	if (rep != NULL)
-		g_object_unref(rep);
-	if (err != NULL) {
-		error("Couldn't release media transport: %s", err->message);
-		g_error_free(err);
-	}
-
-	return ret;
+	return 0;
 }
 
 struct ba_transport *ba_transport_new_a2dp(
@@ -964,20 +945,20 @@ void ba_transport_unref(struct ba_transport * t) {
 	free(t);
 }
 
-int ba_transport_select_codec_a2dp(
-		struct ba_transport *t,
-		const struct a2dp_sep_config *remote_sep_cfg,
-		const void *configuration) {
+error_code_t ba_transport_select_codec_a2dp(
+		struct ba_transport * t,
+		const struct a2dp_sep_config * remote_sep_cfg,
+		const void * configuration) {
 
 #if DEBUG
 	/* Assert that we were called with the codec selection mutex locked. */
 	g_assert_cmpint(pthread_mutex_trylock(&t->codec_select_client_mtx), !=, 0);
 #endif
 
-	/* the same codec with the same configuration already selected */
+	/* The same codec with the same configuration already selected. */
 	if (remote_sep_cfg->codec_id == t->codec_id &&
 			memcmp(configuration, &t->media.a2dp.configuration, remote_sep_cfg->caps_size) == 0)
-		goto final;
+		return ERROR_CODE_OK;
 
 	/* A2DP codec selection is in fact a transport recreation - new transport
 	 * with new codec is created and the current one is released. Since normally
@@ -987,20 +968,18 @@ int ba_transport_select_codec_a2dp(
 	storage_pcm_data_update(&t->media.pcm);
 	storage_pcm_data_update(&t->media.pcm_bc);
 
-	GError *err = NULL;
+	g_autoptr(GError) err = NULL;
 	if (!bluez_a2dp_set_configuration(t->media.bluez_dbus_sep_path,
 				remote_sep_cfg, configuration, &err)) {
 		error("Couldn't set A2DP configuration: %s", err->message);
-		g_error_free(err);
-		return errno = EIO, -1;
+		return ERROR_SYSTEM(EIO);
 	}
 
-final:
-	return 0;
+	return ERROR_CODE_OK;
 }
 
-int ba_transport_select_codec_sco(
-		struct ba_transport *t,
+error_code_t ba_transport_select_codec_sco(
+		struct ba_transport * t,
 		uint8_t codec_id) {
 
 #if DEBUG
@@ -1013,16 +992,16 @@ int ba_transport_select_codec_sco(
 	case BA_TRANSPORT_PROFILE_HFP_AG:
 #if ENABLE_HFP_CODEC_SELECTION
 
-		/* with oFono back-end we have no access to RFCOMM */
+		/* With oFono back-end we have no access to RFCOMM. */
 		if (t->sco.rfcomm == NULL)
-			return errno = ENOTSUP, -1;
+			return ERROR_SYSTEM(ENOTSUP);
 
 		struct ba_rfcomm * const r = t->sco.rfcomm;
 		enum ba_rfcomm_signal rfcomm_signal;
 
-		/* codec already selected, skip switching */
+		/* Codec already selected, skip switching. */
 		if (t->codec_id == codec_id)
-			return 0;
+			return ERROR_CODE_OK;
 
 		/* The codec ID itself will be set by the RFCOMM thread. The
 		 * RFCOMM thread and the current one will be synchronized by
@@ -1042,32 +1021,32 @@ int ba_transport_select_codec_sco(
 			g_assert_not_reached();
 		}
 
-		/* stop transport IO threads */
+		/* Stop transport IO threads. */
 		ba_transport_stop(t);
 
 		ba_transport_pcms_full_lock(t);
-		/* release ongoing PCM connections */
+		/* Release ongoing PCM connections. */
 		ba_transport_pcm_release(&t->sco.pcm_spk);
 		ba_transport_pcm_release(&t->sco.pcm_mic);
 		ba_transport_pcms_full_unlock(t);
 
 		r->codec_selection_done = false;
-		/* delegate set codec to RFCOMM thread */
+		/* Delegate set codec to RFCOMM thread. */
 		ba_rfcomm_send_signal(r, rfcomm_signal);
 
 		while (!r->codec_selection_done)
 			pthread_cond_wait(&r->codec_selection_cond, &t->codec_select_client_mtx);
 
 		if (t->codec_id != codec_id)
-			return errno = EIO, -1;
+			return ERROR_SYSTEM(EIO);
 
 #else
 		(void)codec_id;
 #endif
-		return 0;
+		return ERROR_CODE_OK;
 	case BA_TRANSPORT_PROFILE_HSP_HS:
 	case BA_TRANSPORT_PROFILE_HSP_AG:
-		return errno = ENOTSUP, -1;
+		return ERROR_SYSTEM(ENOTSUP);
 	default:
 		g_assert_not_reached();
 	}

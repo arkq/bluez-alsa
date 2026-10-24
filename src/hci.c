@@ -155,14 +155,14 @@ unsigned int hci_sco_get_mtu(int sco_fd, struct ba_adapter *a) {
 int hci_bcm_read_sco_pcm_params(int dd, uint8_t *routing, uint8_t *clock,
 		uint8_t *frame, uint8_t *sync, uint8_t *clk, int to) {
 
-	struct __attribute__ ((packed)) {
+	struct {
 		uint8_t status;
 		uint8_t sco_routing;
 		uint8_t pcm_interface_rate;
 		uint8_t pcm_frame_type;
 		uint8_t pcm_sync_mode;
 		uint8_t pcm_clock_mode;
-	} rp;
+	} __attribute__ ((packed)) rp;
 
 	struct hci_request rq = {
 		.ogf = OGF_VENDOR_CMD,
@@ -198,13 +198,13 @@ int hci_bcm_read_sco_pcm_params(int dd, uint8_t *routing, uint8_t *clock,
 int hci_bcm_write_sco_pcm_params(int dd, uint8_t routing, uint8_t clock,
 		uint8_t frame, uint8_t sync, uint8_t clk, int to) {
 
-	struct __attribute__ ((packed)) {
+	struct {
 		uint8_t sco_routing;
 		uint8_t pcm_interface_rate;
 		uint8_t pcm_frame_type;
 		uint8_t pcm_sync_mode;
 		uint8_t pcm_clock_mode;
-	} cp = { routing, clock, frame, sync, clk };
+	} __attribute__ ((packed)) cp = { routing, clock, frame, sync, clk };
 	uint8_t rp_status;
 
 	struct hci_request rq = {

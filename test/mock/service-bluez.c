@@ -383,6 +383,9 @@ static int profile_rfcomm_callback(GIOChannel * ch,
 		const char * command;
 		const char * response;
 	} responses[] = {
+		/* Do not reply to status responses. */
+		{ "\r\nOK\r\n", NULL },
+		{ "\r\nERROR\r\n", NULL },
 		/* Accept HFP codec selection. */
 		{ "\r\n+BCS:1\r\n", "AT+BCS=1\r" },
 		{ "\r\n+BCS:2\r\n", "AT+BCS=2\r" },
@@ -417,7 +420,8 @@ static int profile_rfcomm_callback(GIOChannel * ch,
 			break;
 		}
 
-		if (g_io_channel_write_chars(ch, response, -1, &len, &err) != G_IO_STATUS_NORMAL)
+		if (response != NULL &&
+				g_io_channel_write_chars(ch, response, -1, &len, &err) != G_IO_STATUS_NORMAL)
 			warn("Couldn't write RFCOMM response: %s", err->message);
 
 	}
@@ -448,6 +452,22 @@ void mock_bluez_service_device_profile_new_connection(BlueZMockService * srv,
 	g_autoptr(GSource) watch = g_io_create_watch(ch, G_IO_IN);
 	g_source_set_callback(watch, G_SOURCE_FUNC(profile_rfcomm_callback), self, NULL);
 	g_source_attach(watch, NULL);
+
+	/* Send some RFCOMM AT commands right away to check the receiver. */
+
+	static const char * commands[] = {
+		/* Report state of charge as 50%. */
+		"AT+ANDROID=XHSTBATSOC,50\r",
+		/* Report state of health as 90%. */
+		"AT+ANDROID=XHSTBATSOH,90\r",
+	};
+
+	for (size_t i = 0; i < ARRAYSIZE(commands); i++) {
+		size_t len;
+		g_autoptr(GError) err = NULL;
+		if (g_io_channel_write_chars(ch, commands[i], -1, &len, &err) != G_IO_STATUS_NORMAL)
+			warn("Couldn't write RFCOMM command: %s", err->message);
+	}
 
 }
 

@@ -166,9 +166,9 @@ static bool midi_characteristic_acquire_write(
 
 	midi_transport_start_watch_ble_midi(t);
 
-	GUnixFDList *fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
-	g_dbus_method_invocation_return_value_with_unix_fd_list(inv,
-			g_variant_new("(hq)", 0, mtu), fd_list);
+	GVariant * params = g_variant_new("(hq)", 0, mtu);
+	GUnixFDList * fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
+	g_dbus_method_invocation_return_value_with_unix_fd_list(inv, params, fd_list);
 	g_object_unref(fd_list);
 
 	return true;
@@ -224,9 +224,9 @@ static bool midi_characteristic_acquire_notify(
 			G_IO_HUP, midi_characteristic_release_notify, midi, NULL);
 	g_io_channel_unref(ch);
 
-	GUnixFDList *fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
-	g_dbus_method_invocation_return_value_with_unix_fd_list(inv,
-			g_variant_new("(hq)", 0, mtu), fd_list);
+	GVariant * params = g_variant_new("(hq)", 0, mtu);
+	GUnixFDList * fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
+	g_dbus_method_invocation_return_value_with_unix_fd_list(inv, params, fd_list);
 	g_object_unref(fd_list);
 
 	return true;

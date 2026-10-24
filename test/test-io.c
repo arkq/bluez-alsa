@@ -78,6 +78,7 @@
 #include "ba-transport-pcm.h"
 #include "bluealsa-dbus.h"
 #include "bluez.h"
+#include "error.h"
 #include "fixtures.h"
 #include "io.h"
 #if ENABLE_LC3PLUS || ENABLE_LDAC_IO_TEST
@@ -126,8 +127,9 @@ void * asha_g722_dec_thread(struct ba_transport_pcm * t_pcm);
 void * sco_dec_thread(struct ba_transport_pcm * t_pcm);
 void * sco_enc_thread(struct ba_transport_pcm * t_pcm);
 
-int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
-	debug("%s: %p", __func__, (void *)pcm); (void)pcm; return 0; }
+error_code_t bluealsa_dbus_pcm_register(struct ba_transport_pcm * pcm) {
+	debug("%s: %p", __func__, (void *)pcm); (void)pcm;
+	return ERROR_CODE_OK; }
 void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 	debug("%s: %p %#x", __func__, (void *)pcm, mask); (void)pcm; (void)mask; }
 void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {

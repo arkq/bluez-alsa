@@ -431,9 +431,10 @@ static bool asha_characteristic_ctrl_acquire_write(
 	asha->chr_ctrl_write_watch = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT,
 			G_IO_IN, asha_ctrl_read, asha, NULL);
 
-	g_autoptr(GUnixFDList) fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
-	g_dbus_method_invocation_return_value_with_unix_fd_list(inv,
-			g_variant_new("(hq)", 0, chr_get_mtu(inv)), fd_list);
+	GVariant * params = g_variant_new("(hq)", 0, chr_get_mtu(inv));
+	GUnixFDList * fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
+	g_dbus_method_invocation_return_value_with_unix_fd_list(inv, params, fd_list);
+	g_object_unref(fd_list);
 	return true;
 }
 
@@ -486,9 +487,10 @@ static bool asha_characteristic_status_acquire_notify(
 	asha->chr_status_notify_watch_hup = g_io_create_watch_full(asha->chr_status_notify_channel,
 			G_PRIORITY_DEFAULT, G_IO_HUP, asha_status_hup, asha, NULL);
 
-	g_autoptr(GUnixFDList) fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
-	g_dbus_method_invocation_return_value_with_unix_fd_list(inv,
-			g_variant_new("(hq)", 0, chr_get_mtu(inv)), fd_list);
+	GVariant * params = g_variant_new("(hq)", 0, chr_get_mtu(inv));
+	GUnixFDList * fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
+	g_dbus_method_invocation_return_value_with_unix_fd_list(inv, params, fd_list);
+	g_object_unref(fd_list);
 	return true;
 }
 
@@ -570,9 +572,10 @@ static bool asha_characteristic_volume_acquire_write(
 	asha->chr_volume_write_watch = g_io_create_watch_full(ch, G_PRIORITY_DEFAULT,
 			G_IO_IN, asha_volume_read, asha, NULL);
 
-	g_autoptr(GUnixFDList) fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
-	g_dbus_method_invocation_return_value_with_unix_fd_list(inv,
-			g_variant_new("(hq)", 0, chr_get_mtu(inv)), fd_list);
+	GVariant * params = g_variant_new("(hq)", 0, chr_get_mtu(inv));
+	GUnixFDList * fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
+	g_dbus_method_invocation_return_value_with_unix_fd_list(inv, params, fd_list);
+	g_object_unref(fd_list);
 	return true;
 }
 

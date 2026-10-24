@@ -121,19 +121,22 @@ CK_START_TEST(test_dbus_dispatch_method_call) {
 	ck_assert_ptr_nonnull((server = foo_server_new(tc_dbus_connection)));
 
 	/* Call not-handled method. */
+	g_autoptr(GDBusMessage) msg1;
+	msg1 = g_dbus_message_new_method_call("org.example", "/foo", "org.example.Foo", "Boom");
+	g_autoptr(GDBusMessage) rep1;
+	rep1 = g_dbus_connection_send_message_with_reply_sync(tc_dbus_connection, msg1,
+			G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, NULL);
+
 	g_autoptr(GError) err = NULL;
-	g_autoptr(GDBusMessage) msg = g_dbus_message_new_method_call(
-			"org.example", "/foo", "org.example.Foo", "Boom");
-	g_autoptr(GDBusMessage) rep = g_dbus_connection_send_message_with_reply_sync(
-			tc_dbus_connection, msg, G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, NULL);
-	ck_assert_uint_eq(g_dbus_message_to_gerror(rep, &err), TRUE);
+	ck_assert_uint_eq(g_dbus_message_to_gerror(rep1, &err), TRUE);
 	ck_assert_uint_eq(err->code, G_DBUS_ERROR_UNKNOWN_METHOD);
 
 	/* Call handled method and wait for reply. */
-	g_autoptr(GDBusMessage) msg2 = g_dbus_message_new_method_call(
-			"org.example", "/foo", "org.example.Foo", "Ping");
-	g_autoptr(GDBusMessage) rep2 = g_dbus_connection_send_message_with_reply_sync(
-			tc_dbus_connection, msg2, G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, NULL);
+	g_autoptr(GDBusMessage) msg2;
+	msg2 = g_dbus_message_new_method_call("org.example", "/foo", "org.example.Foo", "Ping");
+	g_autoptr(GDBusMessage) rep2;
+	rep2 = g_dbus_connection_send_message_with_reply_sync(tc_dbus_connection, msg2,
+			G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, NULL);
 
 	/* Check if the right handler was called. */
 	ck_assert_uint_eq(server->called_method_error, false);

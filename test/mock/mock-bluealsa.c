@@ -177,23 +177,24 @@ static struct ba_adapter * mock_adapter_new(int dev_id) {
 	struct ba_adapter * a;
 	if ((a = ba_adapter_new(dev_id)) == NULL)
 		return NULL;
-	/* make dummy test HCI mSBC-ready */
+	/* Make dummy test HCI mSBC-ready. */
 	a->hci.features[2] = LMP_TRSP_SCO;
 	a->hci.features[3] = LMP_ESCO;
 	return a;
 }
 
-static struct ba_device *mock_device_new(struct ba_adapter *a, const char *address) {
+static struct ba_device * mock_device_new(struct ba_adapter * a, const char * address) {
 
-	struct ba_device *d;
+	struct ba_device * d;
 	bdaddr_t addr;
 
 	str2ba(address, &addr);
 	if ((d = ba_device_new(a, &addr)) == NULL)
 		return NULL;
 
+	/* Do not load any configuration from the storage to make
+	 * test cases reproducible. */
 	storage_device_clear(d);
-	d->battery.charge = 75;
 
 	return d;
 }

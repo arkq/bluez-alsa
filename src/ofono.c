@@ -75,13 +75,13 @@ static char ofono_dbus_unique_name[32] = "";
  * Ask oFono to connect to a card. */
 static int ofono_acquire_bt_sco(struct ba_transport *t) {
 
-	GDBusMessage *msg = NULL, *rep = NULL;
-	GError *err = NULL;
 	uint8_t codec;
 	int fd = -1;
 	int ret = -1;
 
 	debug("Requesting new oFono SCO link: %s", t->sco.ofono_dbus_path_card);
+
+	g_autoptr(GDBusMessage) msg;
 	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
 			t->sco.ofono_dbus_path_card, OFONO_IFACE_HF_AUDIO_CARD, "Acquire");
 
@@ -97,6 +97,8 @@ static int ofono_acquire_bt_sco(struct ba_transport *t) {
 		nanosleep(&delay, NULL);
 	}
 
+	g_autoptr(GDBusMessage) rep;
+	g_autoptr(GError) err = NULL;
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL ||
 			g_dbus_message_to_gerror(rep, &err))
@@ -132,13 +134,8 @@ static int ofono_acquire_bt_sco(struct ba_transport *t) {
 	ret = 0;
 
 fail:
-	if (msg != NULL)
-		g_object_unref(msg);
-	if (rep != NULL)
-		g_object_unref(rep);
 	if (err != NULL) {
 		error("Couldn't establish oFono SCO link: %s", err->message);
-		g_error_free(err);
 	}
 
 	return ret;
@@ -265,22 +262,17 @@ static struct ba_transport *ofono_transport_lookup_modem(const char *modem) {
 }
 
 #if ENABLE_MSBC
-static void ofono_new_connection_finish(GObject *source, GAsyncResult *result,
-		void *userdata) {
-	(void)userdata;
+static void ofono_new_connection_finish(GObject * source, GAsyncResult * result,
+		G_GNUC_UNUSED void * userdata) {
 
-	GDBusMessage *rep;
-	GError *err = NULL;
-
+	g_autoptr(GDBusMessage) rep;
+	g_autoptr(GError) err = NULL;
 	if ((rep = g_dbus_connection_send_message_with_reply_finish(
 					G_DBUS_CONNECTION(source), result, &err)) != NULL)
 		g_dbus_message_to_gerror(rep, &err);
 
-	if (rep != NULL)
-		g_object_unref(rep);
 	if (err != NULL) {
 		error("Couldn't establish oFono SCO link: %s", err->message);
-		g_error_free(err);
 	}
 
 }
@@ -292,11 +284,11 @@ static void ofono_new_connection_finish(GObject *source, GAsyncResult *result,
  * some devices) so we make the request asynchronously. oFono will invoke
  * the HandsFreeAudioAgent NewConnection method when the codec selection is
  * complete. */
-static void ofono_new_connection_request(struct ba_transport *t) {
-
-	GDBusMessage *msg;
+static void ofono_new_connection_request(struct ba_transport * t) {
 
 	debug("Requesting new oFono SCO link: %s", t->sco.ofono_dbus_path_card);
+
+	g_autoptr(GDBusMessage) msg;
 	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
 			t->sco.ofono_dbus_path_card, OFONO_IFACE_HF_AUDIO_CARD, "Connect");
 
@@ -304,32 +296,31 @@ static void ofono_new_connection_request(struct ba_transport *t) {
 			G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL,
 			ofono_new_connection_finish, NULL);
 
-	g_object_unref(msg);
-
 }
 #endif
 
 /**
  * Link oFono card with a modem. */
-static int ofono_card_link_modem(struct ofono_card_data *ocd) {
+static int ofono_card_link_modem(struct ofono_card_data * ocd) {
 
-	GDBusMessage *msg = NULL, *rep = NULL;
-	GError *err = NULL;
 	int ret = -1;
 
+	g_autoptr(GDBusMessage) msg;
 	msg = g_dbus_message_new_method_call(OFONO_SERVICE, "/",
 			OFONO_IFACE_MANAGER, "GetModems");
 
+	g_autoptr(GDBusMessage) rep;
+	g_autoptr(GError) err = NULL;
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL ||
 			g_dbus_message_to_gerror(rep, &err))
 		goto fail;
 
-	GVariant *body = g_dbus_message_get_body(rep);
+	GVariant * body = g_dbus_message_get_body(rep);
 
-	GVariantIter *modems;
-	GVariantIter *properties;
-	const char *modem;
+	GVariantIter * modems;
+	GVariantIter * properties;
+	const char * modem;
 
 	g_variant_get(body, "(a(oa{sv}))", &modems);
 	while (g_variant_iter_next(modems, "(&oa{sv})", &modem, &properties)) {
@@ -394,13 +385,8 @@ static int ofono_card_link_modem(struct ofono_card_data *ocd) {
 	g_variant_iter_free(modems);
 
 fail:
-	if (msg != NULL)
-		g_object_unref(msg);
-	if (rep != NULL)
-		g_object_unref(rep);
 	if (err != NULL) {
 		error("Couldn't get oFono modems: %s", err->message);
-		g_error_free(err);
 	}
 
 	return ret;
@@ -482,25 +468,26 @@ final:
 
 /**
  * Get all oFono call volume properties and update transport volumes. */
-static int ofono_call_volume_get_properties(struct ba_transport *t) {
+static int ofono_call_volume_get_properties(struct ba_transport * t) {
 
-	GDBusMessage *msg = NULL, *rep = NULL;
-	GError *err = NULL;
 	int ret = -1;
 
+	g_autoptr(GDBusMessage) msg;
 	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
 			t->sco.ofono_dbus_path_modem, OFONO_IFACE_CALL_VOLUME, "GetProperties");
 
+	g_autoptr(GDBusMessage) rep;
+	g_autoptr(GError) err = NULL;
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL ||
 			g_dbus_message_to_gerror(rep, &err))
 		goto fail;
 
-	GVariantIter *properties;
+	GVariantIter * properties;
 	g_variant_get(g_dbus_message_get_body(rep), "(a{sv})", &properties);
 
-	const char *property;
-	GVariant *value;
+	const char * property;
+	GVariant * value;
 
 	unsigned int mask = OFONO_CALL_VOLUME_NONE;
 	while (g_variant_iter_next(properties, "{&sv}", &property, &value)) {
@@ -518,13 +505,8 @@ static int ofono_call_volume_get_properties(struct ba_transport *t) {
 	ret = 0;
 
 fail:
-	if (msg != NULL)
-		g_object_unref(msg);
-	if (rep != NULL)
-		g_object_unref(rep);
 	if (err != NULL) {
 		error("Couldn't get oFono call volume: %s", err->message);
-		g_error_free(err);
 	}
 
 	return ret;
@@ -532,30 +514,21 @@ fail:
 
 /**
  * Set oFono call volume property. */
-static int ofono_call_volume_set_property(struct ba_transport *t,
-		const char *property, GVariant *value, GError **error) {
+static bool ofono_call_volume_set_property(struct ba_transport * t,
+		const char * property, GVariant * value, GError ** error) {
 
-	GDBusMessage *msg = NULL, *rep = NULL;
-	int ret = -1;
-
+	g_autoptr(GDBusMessage) msg;
 	msg = g_dbus_message_new_method_call(t->bluez_dbus_owner,
 			t->sco.ofono_dbus_path_modem, OFONO_IFACE_CALL_VOLUME, "SetProperty");
-
 	g_dbus_message_set_body(msg, g_variant_new("(sv)", property, value));
 
+	g_autoptr(GDBusMessage) rep;
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, error)) == NULL ||
 			g_dbus_message_to_gerror(rep, error))
-		goto fail;
+		return false;
 
-	ret = 0;
-
-fail:
-	if (msg != NULL)
-		g_object_unref(msg);
-	if (rep != NULL)
-		g_object_unref(rep);
-	return ret;
+	return true;
 }
 
 /**
@@ -664,24 +637,25 @@ fail:
  * Get all oFono cards (phones). */
 static int ofono_get_all_cards(void) {
 
-	GDBusMessage *msg = NULL, *rep = NULL;
-	GError *err = NULL;
 	int ret = -1;
 
+	g_autoptr(GDBusMessage) msg;
 	msg = g_dbus_message_new_method_call(OFONO_SERVICE, "/",
 			OFONO_IFACE_HF_AUDIO_MANAGER, "GetCards");
 
+	g_autoptr(GDBusMessage) rep;
+	g_autoptr(GError) err = NULL;
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL ||
 			g_dbus_message_to_gerror(rep, &err))
 		goto fail;
 
-	const char *sender = g_dbus_message_get_sender(rep);
-	GVariant *body = g_dbus_message_get_body(rep);
+	const char * sender = g_dbus_message_get_sender(rep);
+	GVariant * body = g_dbus_message_get_body(rep);
 
-	GVariantIter *cards;
-	GVariantIter *properties;
-	const char *card;
+	GVariantIter * cards;
+	GVariantIter * properties;
+	const char * card;
 
 	g_variant_get(body, "(a(oa{sv}))", &cards);
 	while (g_variant_iter_next(cards, "(&oa{sv})", &card, &properties)) {
@@ -694,13 +668,8 @@ static int ofono_get_all_cards(void) {
 	ret = 0;
 
 fail:
-	if (msg != NULL)
-		g_object_unref(msg);
-	if (rep != NULL)
-		g_object_unref(rep);
 	if (err != NULL) {
 		warn("Couldn't get oFono cards: %s", err->message);
-		g_error_free(err);
 	}
 
 	return ret;
@@ -734,15 +703,15 @@ static void ofono_agent_new_connection(GDBusMethodInvocation *inv, void *userdat
 	GDBusMessage *msg = g_dbus_method_invocation_get_message(inv);
 	GVariant *params = g_dbus_method_invocation_get_parameters(inv);
 
-	struct ba_transport *t = NULL;
-	GError *err = NULL;
-	const char *card;
-	uint8_t codec;
+	struct ba_transport * t = NULL;
 	int fd;
 
+	uint8_t codec;
+	const char * card;
 	g_variant_get(params, "(&ohy)", &card, NULL, &codec);
 
-	GUnixFDList *fd_list = g_dbus_message_get_unix_fd_list(msg);
+	g_autoptr(GError) err = NULL;
+	GUnixFDList * fd_list = g_dbus_message_get_unix_fd_list(msg);
 	if ((fd = g_unix_fd_list_get(fd_list, 0, &err)) == -1) {
 		error("Couldn't obtain oFono SCO link socket: %s", err->message);
 		goto fail;
@@ -825,8 +794,6 @@ fail:
 final:
 	if (t != NULL)
 		ba_transport_unref(t);
-	if (err != NULL)
-		g_error_free(err);
 }
 
 /**
@@ -838,10 +805,8 @@ static void ofono_agent_release(GDBusMethodInvocation *inv, void *userdata) {
 }
 
 /**
- * Register to the oFono service.
- *
- * @return On success this function returns 0. Otherwise -1 is returned. */
-int ofono_register(void) {
+ * Export HFP oFono agent. */
+static bool export_agent(void) {
 
 	static const GDBusMethodCallDispatcher dispatchers[] = {
 		{ .method = "NewConnection",
@@ -857,27 +822,41 @@ int ofono_register(void) {
 		.dispatchers = dispatchers,
 	};
 
+	if (dbus_hf_agent != NULL)
+		return true;
+
+	debug("Exporting oFono HF agent: %s", dbus_agent_object_path);
+
+	g_autoptr(OrgOfonoHandsfreeAudioAgentSkeleton) ifs_hf_agent;
+	if ((ifs_hf_agent = org_ofono_handsfree_audio_agent_skeleton_new(&vtable, NULL, NULL)) == NULL)
+		return false;
+
+	g_autoptr(GError) err = NULL;
+	GDBusInterfaceSkeleton * ifs = G_DBUS_INTERFACE_SKELETON(ifs_hf_agent);
+	if (!g_dbus_interface_skeleton_export(ifs, config.dbus, dbus_agent_object_path, &err)) {
+		warn("Couldn't export oFono HF agent: %s", err->message);
+		return false;
+	}
+
+	dbus_hf_agent = g_steal_pointer(&ifs_hf_agent);
+	return true;
+}
+
+/**
+ * Register to the oFono service.
+ *
+ * @return On success this function returns 0. Otherwise -1 is returned. */
+static int ofono_register(void) {
+
 	if (!config.profile.hfp_ofono)
 		return 0;
 
-	GDBusMessage *msg = NULL, *rep = NULL;
-	GError *err = NULL;
-	int ret = -1;
-
 	debug("Registering oFono audio agent: %s", dbus_agent_object_path);
 
-	if (dbus_hf_agent == NULL) {
-		OrgOfonoHandsfreeAudioAgentSkeleton *ifs_hf_agent;
-		if ((ifs_hf_agent = org_ofono_handsfree_audio_agent_skeleton_new(&vtable, NULL, NULL)) == NULL)
-			goto fail;
-		GDBusInterfaceSkeleton *ifs = G_DBUS_INTERFACE_SKELETON(ifs_hf_agent);
-		if (!g_dbus_interface_skeleton_export(ifs, config.dbus, dbus_agent_object_path, &err)) {
-			g_object_unref(ifs_hf_agent);
-			goto fail;
-		}
-		dbus_hf_agent = ifs_hf_agent;
-	}
+	if (!export_agent())
+		return -1;
 
+	g_autoptr(GDBusMessage) msg;
 	msg = g_dbus_message_new_method_call(OFONO_SERVICE, "/",
 			OFONO_IFACE_HF_AUDIO_MANAGER, "Register");
 
@@ -894,26 +873,18 @@ int ofono_register(void) {
 	g_dbus_message_set_body(msg, g_variant_new("(oay)", dbus_agent_object_path, &options));
 	g_variant_builder_clear(&options);
 
+	g_autoptr(GDBusMessage) rep;
+	g_autoptr(GError) err = NULL;
 	if ((rep = g_dbus_connection_send_message_with_reply_sync(config.dbus, msg,
 					G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err)) == NULL ||
-			g_dbus_message_to_gerror(rep, &err))
-		goto fail;
+			g_dbus_message_to_gerror(rep, &err)) {
+		warn("Couldn't register oFono: %s", err->message);
+		return -1;
+	}
 
 	ofono_get_all_cards();
 
-	ret = 0;
-
-fail:
-	if (msg != NULL)
-		g_object_unref(msg);
-	if (rep != NULL)
-		g_object_unref(rep);
-	if (err != NULL) {
-		warn("Couldn't register oFono: %s", err->message);
-		g_error_free(err);
-	}
-
-	return ret;
+	return 0;
 }
 
 /**
@@ -1097,8 +1068,8 @@ int ofono_call_volume_update(struct ba_transport *t) {
 	};
 
 	for (size_t i = 0; i < ARRAYSIZE(props); i++) {
-		GError *err = NULL;
-		if (ofono_call_volume_set_property(t, props[i].name, props[i].value, &err) == -1) {
+		GError * err = NULL;
+		if (!ofono_call_volume_set_property(t, props[i].name, props[i].value, &err)) {
 			error("Couldn't set oFono call volume: %s: %s", props[i].name, err->message);
 			g_error_free(err);
 			ret = -1;

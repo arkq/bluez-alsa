@@ -45,9 +45,9 @@ static bool characteristic_acquire_notify_callback(
 	int fds[2];
 	socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, fds);
 	characteristic_notify_fd = fds[1];
+	GVariant * params = g_variant_new("(hq)", 0, 512);
 	g_autoptr(GUnixFDList) fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
-	g_dbus_method_invocation_return_value_with_unix_fd_list(inv,
-			g_variant_new("(hq)", 0, 512), fd_list);
+	g_dbus_method_invocation_return_value_with_unix_fd_list(inv, params, fd_list);
 	return true;
 }
 
@@ -58,9 +58,9 @@ static bool characteristic_acquire_write_callback(
 	int fds[2];
 	socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, fds);
 	characteristic_write_fd = fds[1];
+	GVariant * params = g_variant_new("(hq)", 0, 512);
 	g_autoptr(GUnixFDList) fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
-	g_dbus_method_invocation_return_value_with_unix_fd_list(inv,
-			g_variant_new("(hq)", 0, 512), fd_list);
+	g_dbus_method_invocation_return_value_with_unix_fd_list(inv, params, fd_list);
 	return true;
 }
 

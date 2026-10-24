@@ -444,16 +444,15 @@ static int bluealsa_pcm_controller(
 		void * userdata) {
 
 	struct ba_transport_pcm * pcm = userdata;
-	GError * err = NULL;
 	char command[32];
 	size_t len;
 
+	g_autoptr(GError) err = NULL;
 	switch (g_io_channel_read_chars(ch, command, sizeof(command), &len, &err)) {
 	case G_IO_STATUS_AGAIN:
 		return G_SOURCE_CONTINUE;
 	case G_IO_STATUS_ERROR:
 		error("PCM controller read error: %s", err->message);
-		g_error_free(err);
 		return G_SOURCE_CONTINUE;
 	case G_IO_STATUS_NORMAL:
 		if (strncmp(command, BLUEALSA_PCM_CTRL_DRAIN, len) == 0) {
@@ -586,9 +585,9 @@ static void bluealsa_pcm_open(GDBusMethodInvocation *inv, void *userdata) {
 	ba_transport_pcm_signal_send(pcm, BA_TRANSPORT_PCM_SIGNAL_OPEN);
 
 	int fds[2] = { pcm_fds[is_sink ? 1 : 0], pcm_fds[3] };
-	GUnixFDList *fd_list = g_unix_fd_list_new_from_array(fds, 2);
-	g_dbus_method_invocation_return_value_with_unix_fd_list(inv,
-			g_variant_new("(hh)", 0, 1), fd_list);
+	GVariant * params = g_variant_new("(hh)", 0, 1);
+	GUnixFDList * fd_list = g_unix_fd_list_new_from_array(fds, 2);
+	g_dbus_method_invocation_return_value_with_unix_fd_list(inv, params, fd_list);
 	g_object_unref(fd_list);
 
 	pthread_mutex_unlock(&pcm->client_mtx);
@@ -878,7 +877,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 			}
 		}
 
-		if (ba_transport_select_codec_a2dp(t, remote_sep_cfg, &a2dp_configuration) == -1)
+		if (ba_transport_select_codec_a2dp(t, remote_sep_cfg, &a2dp_configuration) != ERROR_CODE_OK)
 			goto fail;
 
 	}
@@ -896,7 +895,7 @@ static void bluealsa_pcm_select_codec(GDBusMethodInvocation *inv, void *userdata
 			goto fail;
 		}
 
-		if (ba_transport_select_codec_sco(t, codec_id) == -1)
+		if (ba_transport_select_codec_sco(t, codec_id) != ERROR_CODE_OK)
 			goto fail;
 
 	}
@@ -936,9 +935,9 @@ static void bluealsa_rfcomm_open(GDBusMethodInvocation *inv, void *userdata) {
 	r->handler_fd = fds[0];
 	ba_rfcomm_send_signal(r, BA_RFCOMM_SIGNAL_PING);
 
-	GUnixFDList *fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
-	g_dbus_method_invocation_return_value_with_unix_fd_list(inv,
-			g_variant_new("(h)", 0), fd_list);
+	GVariant * params = g_variant_new("(h)", 0);
+	GUnixFDList * fd_list = g_unix_fd_list_new_from_array(&fds[1], 1);
+	g_dbus_method_invocation_return_value_with_unix_fd_list(inv, params, fd_list);
 	g_object_unref(fd_list);
 }
 
@@ -1072,7 +1071,7 @@ static bool bluealsa_pcm_set_property(const char *property, GVariant *value,
 
 /**
  * Register BlueALSA D-Bus PCM interface. */
-int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
+error_code_t bluealsa_dbus_pcm_register(struct ba_transport_pcm * pcm) {
 
 	static const GDBusMethodCallDispatcher dispatchers[] = {
 		{ .method = "Open",
@@ -1090,15 +1089,14 @@ int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
 		.set_property = bluealsa_pcm_set_property,
 	};
 
-	GDBusObjectSkeleton *skeleton = NULL;
-	OrgBluealsaPcm1Skeleton *ifs_pcm = NULL;
-
+	g_autoptr(GDBusObjectSkeleton) skeleton;
 	if ((skeleton = g_dbus_object_skeleton_new(pcm->ba_dbus_path)) == NULL)
-		goto fail;
+		return ERROR_SYSTEM(EINVAL);
 
+	g_autoptr(OrgBluealsaPcm1Skeleton) ifs_pcm;
 	if ((ifs_pcm = org_bluealsa_pcm1_skeleton_new(&vtable,
 					pcm, (GDestroyNotify)ba_transport_pcm_unref)) == NULL)
-		goto fail;
+		return ERROR_SYSTEM(EINVAL);
 
 	g_dbus_interface_skeleton_set_flags(G_DBUS_INTERFACE_SKELETON(ifs_pcm),
 			G_DBUS_INTERFACE_SKELETON_FLAGS_HANDLE_METHOD_INVOCATIONS_IN_THREAD);
@@ -1109,17 +1107,10 @@ int bluealsa_dbus_pcm_register(struct ba_transport_pcm *pcm) {
 	g_dbus_object_manager_server_export(bluealsa_dbus_manager, skeleton);
 	pcm->ba_dbus_exported = true;
 
-fail:
-
-	if (skeleton != NULL)
-		g_object_unref(skeleton);
-	if (ifs_pcm != NULL)
-		g_object_unref(ifs_pcm);
-
-	return 0;
+	return ERROR_CODE_OK;
 }
 
-void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
+void bluealsa_dbus_pcm_update(struct ba_transport_pcm * pcm, unsigned int mask) {
 
 	GVariantBuilder props;
 	g_variant_builder_init(&props, G_VARIANT_TYPE_VARDICT);
@@ -1152,14 +1143,11 @@ void bluealsa_dbus_pcm_update(struct ba_transport_pcm *pcm, unsigned int mask) {
 
 }
 
-void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm *pcm) {
-
+void bluealsa_dbus_pcm_unregister(struct ba_transport_pcm * pcm) {
 	if (!pcm->ba_dbus_exported)
 		return;
-
 	g_dbus_object_manager_server_unexport(bluealsa_dbus_manager, pcm->ba_dbus_path);
 	pcm->ba_dbus_exported = false;
-
 }
 
 static GVariant *bluealsa_rfcomm_get_property(const char *property,
@@ -1183,7 +1171,7 @@ static GVariant *bluealsa_rfcomm_get_property(const char *property,
 
 /**
  * Register BlueALSA D-Bus RFCOMM interface. */
-int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r) {
+error_code_t bluealsa_dbus_rfcomm_register(struct ba_rfcomm * r) {
 
 	static const GDBusMethodCallDispatcher dispatchers[] = {
 		{ .method = "Open",
@@ -1196,31 +1184,22 @@ int bluealsa_dbus_rfcomm_register(struct ba_rfcomm *r) {
 		.get_property = bluealsa_rfcomm_get_property,
 	};
 
-	GDBusObjectSkeleton *skeleton = NULL;
-	OrgBluealsaRfcomm1Skeleton *ifs_rfcomm = NULL;
-
+	g_autoptr(GDBusObjectSkeleton) skeleton;
 	if ((skeleton = g_dbus_object_skeleton_new(r->ba_dbus_path)) == NULL)
-		goto fail;
+		return ERROR_SYSTEM(EINVAL);
 
-	if ((ifs_rfcomm = org_bluealsa_rfcomm1_skeleton_new(&vtable,
-					r, NULL)) == NULL)
-		goto fail;
+	g_autoptr(OrgBluealsaRfcomm1Skeleton) ifs_rfcomm;
+	if ((ifs_rfcomm = org_bluealsa_rfcomm1_skeleton_new(&vtable, r, NULL)) == NULL)
+		return ERROR_SYSTEM(EINVAL);
 
 	g_dbus_object_skeleton_add_interface(skeleton, G_DBUS_INTERFACE_SKELETON(ifs_rfcomm));
 	g_dbus_object_manager_server_export(bluealsa_dbus_manager, skeleton);
 	r->ba_dbus_exported = true;
 
-fail:
-
-	if (skeleton != NULL)
-		g_object_unref(skeleton);
-	if (ifs_rfcomm != NULL)
-		g_object_unref(ifs_rfcomm);
-
-	return 0;
+	return ERROR_CODE_OK;
 }
 
-void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
+void bluealsa_dbus_rfcomm_update(struct ba_rfcomm * r, unsigned int mask) {
 
 	GVariantBuilder props;
 	g_variant_builder_init(&props, G_VARIANT_TYPE_VARDICT);
@@ -1235,7 +1214,7 @@ void bluealsa_dbus_rfcomm_update(struct ba_rfcomm *r, unsigned int mask) {
 
 }
 
-void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm *r) {
+void bluealsa_dbus_rfcomm_unregister(struct ba_rfcomm * r) {
 	if (!r->ba_dbus_exported)
 		return;
 	g_dbus_object_manager_server_unexport(bluealsa_dbus_manager, r->ba_dbus_path);
