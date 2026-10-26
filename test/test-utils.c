@@ -33,6 +33,7 @@
 CK_START_TEST(test_g_dbus_bluez_object_path_to_hci_dev_id) {
 
 	ck_assert_int_eq(g_dbus_bluez_object_path_to_hci_dev_id("/org/bluez"), -1);
+	ck_assert_int_eq(g_dbus_bluez_object_path_to_hci_dev_id("/org/bluez/hci"), -1);
 	ck_assert_int_eq(g_dbus_bluez_object_path_to_hci_dev_id("/org/bluez/hci0"), 0);
 	ck_assert_int_eq(g_dbus_bluez_object_path_to_hci_dev_id("/org/bluez/hci5"), 5);
 
@@ -52,6 +53,8 @@ CK_START_TEST(test_g_dbus_bluez_object_path_to_bdaddr) {
 	                                                    &addr), &addr);
 	ck_assert_int_eq(bacmp(&addr, &addr_ok), 0);
 
+	ck_assert_ptr_null(g_dbus_bluez_object_path_to_bdaddr("/org/bluez", &addr));
+
 	ck_assert_ptr_null(g_dbus_bluez_object_path_to_bdaddr("/org/bluez/dev_12_34_56_78_9A_XX",
 	                                                      &addr));
 
@@ -61,10 +64,20 @@ CK_END_TEST
 CK_START_TEST(test_g_variant_sanitize_object_path) {
 
 	char path1[] = "/some/valid_path/123";
-	char path2[] = "/a#$*/invalid-path";
-
 	ck_assert_str_eq(g_variant_sanitize_object_path(path1), "/some/valid_path/123");
+
+	char path2[] = "/a#$*/invalid-path";
 	ck_assert_str_eq(g_variant_sanitize_object_path(path2), "/a___/invalid_path");
+
+}
+CK_END_TEST
+
+CK_START_TEST(test_g_variant_validate_value) {
+
+	g_autoptr(GVariant) value = g_variant_new_string("foo");
+
+	ck_assert_uint_eq(g_variant_validate_value(value, G_VARIANT_TYPE_BYTE, "Name"), false);
+	ck_assert_uint_eq(g_variant_validate_value(value, G_VARIANT_TYPE_STRING, "Name"), true);
 
 }
 CK_END_TEST
@@ -421,6 +434,7 @@ int main(void) {
 	tcase_add_test(tc, test_g_dbus_bluez_object_path_to_hci_dev_id);
 	tcase_add_test(tc, test_g_dbus_bluez_object_path_to_bdaddr);
 	tcase_add_test(tc, test_g_variant_sanitize_object_path);
+	tcase_add_test(tc, test_g_variant_validate_value);
 #if DEBUG
 	tcase_add_test(tc, test_batostr_);
 #endif

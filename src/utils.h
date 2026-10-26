@@ -14,7 +14,6 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 
 #include <bluetooth/bluetooth.h>
 
@@ -38,9 +37,5 @@ GSource * g_io_create_watch_full(GIOChannel * channel, int priority,
 
 unsigned int g_bdaddr_hash(const void * v);
 gboolean g_bdaddr_equal(const void * v1, const void * v2);
-
-#if ENABLE_MP3LAME
-int a2dp_mpeg1_mp3_get_max_bitrate(uint16_t mask);
-#endif
 
 #endif

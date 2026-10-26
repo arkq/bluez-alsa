@@ -165,24 +165,3 @@ unsigned int g_bdaddr_hash(const void * v) {
 gboolean g_bdaddr_equal(const void * v1, const void * v2) {
 	return bacmp(v1, v2) == 0;
 }
-
-#if ENABLE_MP3LAME
-/**
- * Get maximum possible bitrate for the given bitrate mask.
- *
- * @param mask MPEG-1 layer III bitrate mask.
- * @return Bitrate in kilobits per second. */
-int a2dp_mpeg1_mp3_get_max_bitrate(uint16_t mask) {
-
-	static int bitrates[] = { 320, 256, 224, 192, 160, 128, 112, 96, 80, 64, 56, 48, 40, 32 };
-	size_t i = 0;
-
-	while (i < ARRAYSIZE(bitrates)) {
-		if (mask & (1 << (14 - i)))
-			return bitrates[i];
-		i++;
-	}
-
-	return -1;
-}
-#endif

@@ -284,10 +284,36 @@ CK_START_TEST(test_a2dp_caps_intersect) {
 }
 CK_END_TEST
 
+static error_code_t a2dp_bit_mapping_foreach_continue(
+		G_GNUC_UNUSED struct a2dp_bit_mapping mapping,
+		G_GNUC_UNUSED void * userdata) {
+	return ERROR_CODE_CONTINUE;
+}
+
+CK_START_TEST(test_a2dp_caps_foreach) {
+
+	static const struct a2dp_bit_mapping a2dp_channels[] = {
+		{ 0x0001, .ch = { 1, a2dp_channel_map_mono } },
+		{ 0 },
+	};
+
+	/* Check that after successful matching, OK is returned. */
+	ck_assert_int_eq(a2dp_bit_mapping_foreach(a2dp_channels, 0xFFFF,
+	                                          a2dp_bit_mapping_foreach_continue, NULL),
+	                 ERROR_CODE_OK);
+
+	/* Check error code for no matching entries. */
+	ck_assert_int_eq(a2dp_bit_mapping_foreach(a2dp_channels, 0xFF00,
+	                                          a2dp_bit_mapping_foreach_continue, NULL),
+	                 ERROR_CODE_NOT_FOUND);
+
+}
+CK_END_TEST
+
 CK_START_TEST(test_a2dp_caps_foreach_get_best) {
 
-	a2dp_sbc_t caps_sbc = {
-		.sampling_freq = SBC_SAMPLING_FREQ_16000 | SBC_SAMPLING_FREQ_44100,
+	const a2dp_sbc_t caps_sbc = {
+		.sampling_freq = SBC_SAMPLING_FREQ_44100 | SBC_SAMPLING_FREQ_48000,
 		.channel_mode = SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_STEREO,
 	};
 
@@ -303,14 +329,14 @@ CK_START_TEST(test_a2dp_caps_foreach_get_best) {
 	                                                                   a2dp_bit_mapping_foreach_get_best_sample_rate,
 	                                                                   &sampling_freq),
 	                 ERROR_CODE_OK);
-	ck_assert_uint_eq(sampling_freq, SBC_SAMPLING_FREQ_44100);
+	ck_assert_uint_eq(sampling_freq, SBC_SAMPLING_FREQ_48000);
 
 #if ENABLE_AAC
 
 	/* Check default internal limits for selecting number of channels (up to
 	 * 2 channels) and sample rate (up to 48 kHz). */
 
-	a2dp_aac_t caps_aac = {
+	const a2dp_aac_t caps_aac = {
 		A2DP_AAC_INIT_SAMPLING_FREQ(AAC_SAMPLING_FREQ_48000 | AAC_SAMPLING_FREQ_96000),
 		.channel_mode = AAC_CHANNEL_MODE_MONO | AAC_CHANNEL_MODE_STEREO | AAC_CHANNEL_MODE_5_1,
 	};
@@ -330,6 +356,58 @@ CK_START_TEST(test_a2dp_caps_foreach_get_best) {
 	ck_assert_uint_eq(sampling_freq, AAC_SAMPLING_FREQ_48000);
 
 #endif
+
+}
+CK_END_TEST
+
+CK_START_TEST(test_a2dp_caps_foreach_get_best_force_mono) {
+
+	a2dp_sbc_t caps = { .channel_mode = SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_STEREO };
+	/* Check selection in case when force-mono is applied. */
+	config.a2dp.force_mono = true;
+
+	unsigned int channel_mode = 0;
+	ck_assert_int_eq(a2dp_sbc_source.caps_helpers->foreach_channel_mode(&caps, A2DP_MAIN,
+	                                                                    a2dp_bit_mapping_foreach_get_best_channel_mode,
+	                                                                    &channel_mode),
+	                 ERROR_CODE_OK);
+	ck_assert_uint_eq(channel_mode, SBC_CHANNEL_MODE_MONO);
+
+	/* Check selection if capabilities do not include mono. */
+	caps.channel_mode = SBC_CHANNEL_MODE_STEREO;
+
+	channel_mode = 0;
+	ck_assert_int_eq(a2dp_sbc_source.caps_helpers->foreach_channel_mode(&caps, A2DP_MAIN,
+	                                                                    a2dp_bit_mapping_foreach_get_best_channel_mode,
+	                                                                    &channel_mode),
+	                 ERROR_CODE_OK);
+	ck_assert_uint_eq(channel_mode, SBC_CHANNEL_MODE_STEREO);
+
+}
+CK_END_TEST
+
+CK_START_TEST(test_a2dp_caps_foreach_get_best_force_44100) {
+
+	a2dp_sbc_t caps = { .sampling_freq = SBC_SAMPLING_FREQ_44100 | SBC_SAMPLING_FREQ_48000 };
+	/* Check selection in case when force-44100 is applied. */
+	config.a2dp.force_44100 = true;
+
+	unsigned int sampling_freq = 0;
+	ck_assert_int_eq(a2dp_sbc_source.caps_helpers->foreach_sample_rate(&caps, A2DP_MAIN,
+	                                                                   a2dp_bit_mapping_foreach_get_best_sample_rate,
+	                                                                   &sampling_freq),
+	                 ERROR_CODE_OK);
+	ck_assert_uint_eq(sampling_freq, SBC_SAMPLING_FREQ_44100);
+
+	/* Check selection if capabilities do not include 44100 Hz. */
+	caps.sampling_freq = SBC_SAMPLING_FREQ_48000;
+
+	sampling_freq = 0;
+	ck_assert_int_eq(a2dp_sbc_source.caps_helpers->foreach_sample_rate(&caps, A2DP_MAIN,
+	                                                                   a2dp_bit_mapping_foreach_get_best_sample_rate,
+	                                                                   &sampling_freq),
+	                 ERROR_CODE_OK);
+	ck_assert_uint_eq(sampling_freq, SBC_SAMPLING_FREQ_48000);
 
 }
 CK_END_TEST
@@ -421,7 +499,7 @@ CK_START_TEST(test_a2dp_select_configuration) {
 	ck_assert_int_eq(cfg_aac.vbr, 1);
 
 	cfg_aac = cfg_aac_;
-	/* FDK-AAC encoder does not support AAC Long Term Prediction */
+	/* FDK-AAC encoder does not support AAC Long Term Prediction. */
 	cfg_aac.object_type = AAC_OBJECT_TYPE_MPEG4_LTP;
 	ck_assert_int_eq(a2dp_select_configuration(&a2dp_aac_source, &cfg_aac, sizeof(cfg_aac)),
 	                 ERROR_CODE_A2DP_UNSUPPORTED_OBJECT_TYPE);
@@ -430,6 +508,15 @@ CK_START_TEST(test_a2dp_select_configuration) {
 
 }
 CK_END_TEST
+
+#if ENABLE_MP3LAME
+CK_START_TEST(test_a2dp_mpeg1_mp3_get_max_bitrate) {
+	/* 7-th bit corresponds to '0111' MPEG-1 Bit Rate Index, which is 96 kbps. */
+	ck_assert_int_eq(a2dp_mpeg1_mp3_get_max_bitrate(0x0080), 96);
+	ck_assert_int_eq(a2dp_mpeg1_mp3_get_max_bitrate(0x0000), -1);
+}
+CK_END_TEST
+#endif
 
 int main(void) {
 
@@ -451,11 +538,18 @@ int main(void) {
 
 	tcase_add_test(tc, test_a2dp_caps);
 	tcase_add_test(tc, test_a2dp_caps_intersect);
+	tcase_add_test(tc, test_a2dp_caps_foreach);
 	tcase_add_test(tc, test_a2dp_caps_foreach_get_best);
+	tcase_add_test(tc, test_a2dp_caps_foreach_get_best_force_mono);
+	tcase_add_test(tc, test_a2dp_caps_foreach_get_best_force_44100);
 	tcase_add_test(tc, test_a2dp_caps_select_channels_and_sampling);
 
 	tcase_add_test(tc, test_a2dp_check_configuration);
 	tcase_add_test(tc, test_a2dp_select_configuration);
+
+#if ENABLE_MP3LAME
+	tcase_add_test(tc, test_a2dp_mpeg1_mp3_get_max_bitrate);
+#endif
 
 	srunner_run_all(sr, CK_ENV);
 	int nf = srunner_ntests_failed(sr);

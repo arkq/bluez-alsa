@@ -1,6 +1,6 @@
 /*
  * BlueALSA - a2dp.c
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
 
@@ -128,12 +128,15 @@ error_code_t a2dp_bit_mapping_foreach(
 		uint32_t bitmask,
 		a2dp_bit_mapping_foreach_func func,
 		void * userdata) {
-	error_code_t err = ERROR_CODE_NOT_FOUND;
+	bool matched = false;
 	for (size_t i = 0; mappings[i].bit_value != 0; i++)
-		if (mappings[i].bit_value & bitmask)
+		if (mappings[i].bit_value & bitmask) {
+			error_code_t err;
 			if ((err = func(mappings[i], userdata)) != ERROR_CODE_CONTINUE)
 				return err;
-	return err == ERROR_CODE_CONTINUE ? ERROR_CODE_OK : err;
+			matched = true;
+		}
+	return matched ? ERROR_CODE_OK : ERROR_CODE_NOT_FOUND;
 }
 
 /**
@@ -292,13 +295,6 @@ static int a2dp_codec_id_cmp(uint32_t a, uint32_t b) {
 	return strcasecmp(a_name, b_name);
 }
 
-/**
- * Compare A2DP SEP configurations.
- *
- * This function orders A2DP SEPs according to following rules:
- *  - order SEPs by A2DP type
- *  - order SEPs by codec ID
- *  - order vendor codecs alphabetically (case insensitive) */
 int a2dp_sep_config_cmp(
 		const struct a2dp_sep_config * a,
 		const struct a2dp_sep_config * b) {
@@ -307,19 +303,10 @@ int a2dp_sep_config_cmp(
 	return a->type - b->type;
 }
 
-/**
- * Compare A2DP SEPs. */
 int a2dp_sep_ptr_cmp(const struct a2dp_sep ** a, const struct a2dp_sep ** b) {
 	return a2dp_sep_config_cmp(&(*a)->config, &(*b)->config);
 }
 
-/**
- * Lookup SEP for given type and codec.
- *
- * @param type The A2DP SEP type.
- * @param codec_id BlueALSA A2DP 32-bit codec ID.
- * @return On success this function returns the address of the SEP
- *   configuration structure. Otherwise, NULL is returned. */
 const struct a2dp_sep * a2dp_sep_lookup(enum a2dp_type type, uint32_t codec_id) {
 	for (size_t i = 0; a2dp_seps[i] != NULL; i++)
 		if (a2dp_seps[i]->config.type == type &&
@@ -328,20 +315,12 @@ const struct a2dp_sep * a2dp_sep_lookup(enum a2dp_type type, uint32_t codec_id) 
 	return NULL;
 }
 
-/**
- * Get A2DP 32-bit vendor codec ID - BlueALSA extension.
- *
- * @param capabilities A2DP vendor codec capabilities.
- * @param size A2DP vendor codec capabilities size.
- * @return On success this function returns A2DP 32-bit vendor codec ID. */
 uint32_t a2dp_get_vendor_codec_id(const void * capabilities, size_t size) {
 	if (size < sizeof(a2dp_vendor_info_t))
 		return errno = EINVAL, A2DP_CODEC_UNDEFINED;
 	return a2dp_codec_from_vendor_info(capabilities);
 }
 
-/**
- * Select best possible A2DP codec configuration. */
 error_code_t a2dp_select_configuration(
 		const struct a2dp_sep * sep,
 		void * capabilities,
@@ -354,14 +333,6 @@ error_code_t a2dp_select_configuration(
 	return ERROR_CODE_INVALID_SIZE;
 }
 
-/**
- * Check whether A2DP configuration is valid.
- *
- * @param sep A2DP Stream End-Point setup.
- * @param configuration A2DP codec configuration blob.
- * @param size The size of the A2DP codec configuration blob.
- * @return On success this function returns ERROR_CODE_OK. Otherwise,
- *   one of the application error codes is returned. */
 error_code_t a2dp_check_configuration(
 		const struct a2dp_sep * sep,
 		const void * configuration,
@@ -373,3 +344,20 @@ error_code_t a2dp_check_configuration(
 	error("Invalid configuration size: %zu != %zu", size, sep->config.caps_size);
 	return ERROR_CODE_INVALID_SIZE;
 }
+
+#if ENABLE_MP3LAME
+int a2dp_mpeg1_mp3_get_max_bitrate(
+		uint16_t mask) {
+
+	static int rates[] = { 320, 256, 224, 192, 160, 128, 112, 96, 80, 64, 56, 48, 40, 32 };
+	size_t i = 0;
+
+	while (i < ARRAYSIZE(rates)) {
+		if (mask & (1 << (14 - i)))
+			return rates[i];
+		i++;
+	}
+
+	return -1;
+}
+#endif
