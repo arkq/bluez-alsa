@@ -66,7 +66,7 @@ jobs:
     - name: Install Dependencies
       uses: ./.github/actions/apt-install-deps
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v4
+      uses: github/codeql-action/init@v4.37.4
       with:
         languages: cpp
         queries: security-and-quality
@@ -102,7 +102,7 @@ jobs:
       working-directory: ${{ github.workspace }}/build
       run: make
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v4
+      uses: github/codeql-action/analyze@v4.37.4
 
   doc8-lint:
     runs-on: ubuntu-latest
