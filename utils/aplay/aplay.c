@@ -34,6 +34,7 @@
 #include "alsa-pcm.h"
 #include "dbus.h"
 #include "delay-report.h"
+#include "media-control.h"
 #include "shared/dbus-client.h"
 #include "shared/dbus-client-pcm.h"
 #include "shared/defs.h"
@@ -84,6 +85,7 @@ struct io_worker {
 	atomic_bool active;
 	/* human-readable BT address */
 	char addr[18];
+	struct media_control mc;
 };
 
 static unsigned int verbose = 0;
@@ -343,37 +345,6 @@ static struct io_worker * get_active_io_worker(void) {
 	return w;
 }
 
-static int pause_device_player(const struct ba_pcm * ba_pcm) {
-
-	DBusMessage * msg = NULL, * rep = NULL;
-	DBusError err = DBUS_ERROR_INIT;
-	char path[160];
-	int ret = 0;
-
-	snprintf(path, sizeof(path), "%s/player0", ba_pcm->device_path);
-	msg = dbus_message_new_method_call("org.bluez", path, "org.bluez.MediaPlayer1", "Pause");
-
-	if ((rep = dbus_connection_send_with_reply_and_block(dbus_ctx.conn, msg,
-	                                                     DBUS_TIMEOUT_USE_DEFAULT, &err)) == NULL) {
-		warn("Couldn't pause player: %s", err.message);
-		dbus_error_free(&err);
-		goto fail;
-	}
-
-	debug("Requested playback pause");
-	goto final;
-
-fail:
-	ret = -1;
-
-final:
-	if (msg != NULL)
-		dbus_message_unref(msg);
-	if (rep != NULL)
-		dbus_message_unref(rep);
-	return ret;
-}
-
 /**
  * Update BlueALSA PCM volume according to ALSA mixer element. */
 static int io_worker_mixer_volume_sync_ba_pcm(
@@ -620,9 +591,6 @@ static void * io_worker_routine(struct io_worker * w) {
 	struct delay_report dr;
 	delay_report_init(&dr, &dbus_ctx, &w->ba_pcm);
 
-	size_t pause_retry_pcm_samples = pcm_1s_samples;
-	size_t pause_retries = 0;
-
 	int timeout = -1;
 
 	debug("Starting IO loop");
@@ -744,20 +712,8 @@ static void * io_worker_routine(struct io_worker * w) {
 			pthread_mutex_lock(&single_playback_mutex);
 			single_playback_mutex_locked = true;
 
-			if (get_active_io_worker() != NULL) {
-				/* In order not to flood BT connection with AVRCP packets,
-				 * we are going to send pause command every 0.5 second. */
-				if (pause_retries < 5 &&
-				    (pause_retry_pcm_samples += read_samples) > pcm_1s_samples / 2) {
-					if (pause_device_player(&w->ba_pcm) == -1)
-						/* pause command does not work, stop further requests */
-						pause_retries = 5;
-					pause_retry_pcm_samples = 0;
-					pause_retries++;
-					timeout = 100;
-				}
+			if (get_active_io_worker() != NULL)
 				continue;
-			}
 
 		}
 
@@ -989,8 +945,6 @@ static void * io_worker_routine(struct io_worker * w) {
 
 device_inactive:
 		debug("BT device marked as inactive: %s", w->addr);
-		pause_retry_pcm_samples = pcm_1s_samples;
-		pause_retries = 0;
 		timeout = -1;
 
 close_alsa:
@@ -1107,6 +1061,12 @@ static struct io_worker * supervise_io_worker_start(const struct ba_pcm * ba_pcm
 	alsa_pcm_init(&worker->alsa_pcm);
 	alsa_mixer_init(&worker->alsa_mixer, io_worker_mixer_event_callback, worker);
 	worker->active = !force_single_playback;
+
+	if (force_single_playback && media_control_pcm_is_media(ba_pcm)) {
+		media_control_init(&worker->mc, worker->ba_pcm.device_path, dbus_ctx.conn);
+		debug("Initial player for %s: %s", worker->addr,
+		      worker->mc.connected ? worker->mc.player_path : "NONE");
+	}
 
 	debug("Starting IO worker %s", worker->addr);
 	if ((errno = pthread_create(&worker->thread, NULL,
@@ -1247,6 +1207,69 @@ static DBusHandlerResult dbus_signal_handler(DBusConnection * conn, DBusMessage 
 
 fail:
 	return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+}
+
+void io_worker_update_player_path(const char * device_path, struct media_control * mc) {
+	pthread_rwlock_rdlock(&workers_lock);
+	for (size_t i = 0; i < workers_size; i++)
+		if (workers[i] &&
+		    strcmp(workers[i]->ba_pcm.device_path, device_path) == 0 &&
+		    media_control_pcm_is_media(&workers[i]->ba_pcm)) {
+			pthread_mutex_lock(&workers[i]->mutex);
+			memcpy(&workers[i]->mc, mc, sizeof(workers[i]->mc));
+			pthread_mutex_unlock(&workers[i]->mutex);
+			debug("Updated player for %s: %s", workers[i]->addr,
+			      mc->connected ? mc->player_path : "NONE");
+		}
+	pthread_rwlock_unlock(&workers_lock);
+}
+
+void io_worker_update_player_status(
+		const char * player_path,
+		const char * status,
+		DBusConnection * conn) {
+	if (strcmp(status, "playing") == 0) {
+		struct io_worker * active_worker = NULL;
+		struct io_worker * this_worker = NULL;
+		pthread_rwlock_rdlock(&workers_lock);
+		for (size_t i = 0; i < workers_size; i++) {
+			if (workers[i] == NULL)
+				continue;
+			pthread_mutex_lock(&workers[i]->mutex);
+			if (workers[i]->active)
+				active_worker = workers[i];
+			if (this_worker == NULL)
+				if (workers[i]->mc.connected && strcmp(workers[i]->mc.player_path, player_path) == 0) {
+					this_worker = workers[i];
+					this_worker->mc.state = MEDIA_CONTROL_STATE_PLAYING;
+
+				}
+			pthread_mutex_unlock(&workers[i]->mutex);
+		}
+		pthread_rwlock_unlock(&workers_lock);
+
+		if (this_worker != NULL) {
+			if (active_worker == NULL || active_worker == this_worker)
+				return;
+
+			debug("Pausing %s: %s", this_worker->addr, this_worker->mc.player_path);
+			media_control_pause_player(&this_worker->mc, conn);
+		}
+	}
+
+	if (strcmp(status, "paused") == 0) {
+		pthread_rwlock_rdlock(&workers_lock);
+		for (size_t i = 0; i < workers_size; i++) {
+			if (workers[i] == NULL)
+				continue;
+			pthread_mutex_lock(&workers[i]->mutex);
+			if (workers[i]->mc.connected && strcmp(workers[i]->mc.player_path, player_path) == 0)
+				workers[i]->mc.state = MEDIA_CONTROL_STATE_PAUSED;
+			pthread_mutex_unlock(&workers[i]->mutex);
+		}
+		pthread_rwlock_unlock(&workers_lock);
+	}
+
 }
 
 int main(int argc, char * argv[]) {
@@ -1594,6 +1617,9 @@ int main(int argc, char * argv[]) {
 		error("Couldn't add D-Bus filter: %s", err.message);
 		return EXIT_FAILURE;
 	}
+
+	if (force_single_playback)
+		media_control_dbus_add_signal_handler(&dbus_ctx);
 
 	if (!ba_dbus_pcm_get_all(&dbus_ctx, &ba_pcms, &ba_pcms_count, &err))
 		warn("Couldn't get BlueALSA PCM list: %s", err.message);
