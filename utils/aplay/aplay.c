@@ -643,6 +643,7 @@ static void * io_worker_routine(struct io_worker * w) {
 		    w->active &&
 		    ffb_blen_out(&read_buffer) == 0 &&
 		    !alsa_pcm_is_running(&w->alsa_pcm)) {
+
 			/* The BT device is in the running state, but is not sending audio
 			 * frames. As there is no work for the ALSA device to do we simply
 			 * wait for more audio to arrive from the server. */
@@ -712,9 +713,12 @@ static void * io_worker_routine(struct io_worker * w) {
 			pthread_mutex_lock(&single_playback_mutex);
 			single_playback_mutex_locked = true;
 
-			if (get_active_io_worker() != NULL)
-				continue;
+			if (get_active_io_worker() != NULL) {
+				if (media_control_pcm_is_media(&w->ba_pcm))
+					media_control_pause_player(&w->mc, dbus_ctx.conn);
 
+				continue;
+			}
 		}
 
 		if (!alsa_pcm_is_open(&w->alsa_pcm)) {
@@ -1063,7 +1067,7 @@ static struct io_worker * supervise_io_worker_start(const struct ba_pcm * ba_pcm
 	worker->active = !force_single_playback;
 
 	if (force_single_playback && media_control_pcm_is_media(ba_pcm)) {
-		media_control_init(&worker->mc, worker->ba_pcm.device_path, dbus_ctx.conn);
+		media_control_init(&worker->mc, ba_pcm->device_path, dbus_ctx.conn);
 		debug("Initial player for %s: %s", worker->addr,
 		      worker->mc.connected ? worker->mc.player_path : "NONE");
 	}
@@ -1215,61 +1219,33 @@ void io_worker_update_player_path(const char * device_path, struct media_control
 		if (workers[i] &&
 		    strcmp(workers[i]->ba_pcm.device_path, device_path) == 0 &&
 		    media_control_pcm_is_media(&workers[i]->ba_pcm)) {
+
 			pthread_mutex_lock(&workers[i]->mutex);
 			memcpy(&workers[i]->mc, mc, sizeof(workers[i]->mc));
 			pthread_mutex_unlock(&workers[i]->mutex);
 			debug("Updated player for %s: %s", workers[i]->addr,
 			      mc->connected ? mc->player_path : "NONE");
+			break;
 		}
 	pthread_rwlock_unlock(&workers_lock);
 }
 
 void io_worker_update_player_status(
 		const char * player_path,
-		const char * status,
-		DBusConnection * conn) {
-	if (strcmp(status, "playing") == 0) {
-		struct io_worker * active_worker = NULL;
-		struct io_worker * this_worker = NULL;
-		pthread_rwlock_rdlock(&workers_lock);
-		for (size_t i = 0; i < workers_size; i++) {
-			if (workers[i] == NULL)
-				continue;
-			pthread_mutex_lock(&workers[i]->mutex);
-			if (workers[i]->active)
-				active_worker = workers[i];
-			if (this_worker == NULL)
-				if (workers[i]->mc.connected && strcmp(workers[i]->mc.player_path, player_path) == 0) {
-					this_worker = workers[i];
-					this_worker->mc.state = MEDIA_CONTROL_STATE_PLAYING;
+		const char * status) {
 
-				}
-			pthread_mutex_unlock(&workers[i]->mutex);
-		}
-		pthread_rwlock_unlock(&workers_lock);
-
-		if (this_worker != NULL) {
-			if (active_worker == NULL || active_worker == this_worker)
-				return;
-
-			debug("Pausing %s: %s", this_worker->addr, this_worker->mc.player_path);
-			media_control_pause_player(&this_worker->mc, conn);
+	pthread_rwlock_rdlock(&workers_lock);
+	for (size_t i = 0; i < workers_size; i++) {
+		if (workers[i] == NULL)
+			continue;
+		if (workers[i]->mc.connected && strcmp(workers[i]->mc.player_path, player_path) == 0) {
+			if (media_control_status_is_pausable(status))
+				workers[i]->mc.state = MEDIA_CONTROL_STATE_PAUSABLE;
+			else
+				workers[i]->mc.state = MEDIA_CONTROL_STATE_STOPPED;
 		}
 	}
-
-	if (strcmp(status, "paused") == 0) {
-		pthread_rwlock_rdlock(&workers_lock);
-		for (size_t i = 0; i < workers_size; i++) {
-			if (workers[i] == NULL)
-				continue;
-			pthread_mutex_lock(&workers[i]->mutex);
-			if (workers[i]->mc.connected && strcmp(workers[i]->mc.player_path, player_path) == 0)
-				workers[i]->mc.state = MEDIA_CONTROL_STATE_PAUSED;
-			pthread_mutex_unlock(&workers[i]->mutex);
-		}
-		pthread_rwlock_unlock(&workers_lock);
-	}
-
+	pthread_rwlock_unlock(&workers_lock);
 }
 
 int main(int argc, char * argv[]) {

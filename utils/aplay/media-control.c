@@ -11,25 +11,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "dbus.h"
 #include "media-control.h"
 #include "shared/dbus-client.h"
 #include "shared/log.h"
 
-#ifndef DBUS_IFACE_PROPERTIES
-# define DBUS_IFACE_PROPERTIES "org.freedesktop.DBus.Properties"
-#endif
-
-#ifndef BLUEZ_SERVICE
-# define BLUEZ_SERVICE "org.bluez"
-#endif
-
-#ifndef BLUEZ_IFACE_MEDIACONTROL
-# define BLUEZ_IFACE_MEDIACONTROL BLUEZ_SERVICE ".MediaControl1"
-#endif
-
-#ifndef BLUEZ_IFACE_MEDIAPLAYER
-# define BLUEZ_IFACE_MEDIAPLAYER BLUEZ_SERVICE ".MediaPlayer1"
-#endif
 
 extern void io_worker_update_player_path(
 		const char * device_path,
@@ -37,8 +23,41 @@ extern void io_worker_update_player_path(
 
 extern void io_worker_update_player_status(
 		const char * player_path,
-		const char * status,
-		DBusConnection * conn);
+		const char * status);
+
+static bool media_control_get_player_status(struct media_control * mc, DBusConnection * conn) {
+	DBusMessage * rep = NULL;
+	DBusError err = DBUS_ERROR_INIT;
+	bool rv = false;
+
+	if ((rep = dbus_get_properties(conn, BLUEZ_SERVICE, mc->player_path, BLUEZ_IFACE_MEDIAPLAYER,
+	                               "Status", &err)) == NULL)
+		goto fail;
+
+	DBusMessageIter iter;
+	dbus_message_iter_init(rep, &iter);
+	DBusMessageIter iter_var;
+	dbus_message_iter_recurse(&iter, &iter_var);
+	if (dbus_message_iter_get_arg_type(&iter_var) != DBUS_TYPE_STRING)
+		goto fail;
+
+	const char * status = NULL;
+	dbus_message_iter_get_basic(&iter_var, &status);
+	if (status != NULL) {
+		if (media_control_status_is_pausable(status))
+			mc->state = MEDIA_CONTROL_STATE_PAUSABLE;
+		else
+			mc->state = MEDIA_CONTROL_STATE_STOPPED;
+		rv = true;
+	}
+
+fail:
+	if (rep)
+		dbus_message_unref(rep);
+	dbus_error_free(&err);
+
+	return rv;
+}
 
 static dbus_bool_t media_control_dbus_message_iter_get_props_cb(
 		const char * key,
@@ -163,6 +182,9 @@ static DBusHandlerResult media_control_dbus_signal_handler(
 		struct media_control mc = { 0 };
 		if (!dbus_message_iter_get_media_control_props(&iter, &mc))
 			goto fail;
+
+		if (mc.connected)
+			media_control_get_player_status(&mc, conn);
 		io_worker_update_player_path(path, &mc);
 
 		return DBUS_HANDLER_RESULT_HANDLED;
@@ -179,7 +201,7 @@ static DBusHandlerResult media_control_dbus_signal_handler(
 		if (!dbus_message_iter_get_media_player_status(&iter, &status))
 			goto fail;
 
-		io_worker_update_player_status(path, status, conn);
+		io_worker_update_player_status(path, status);
 
 		return DBUS_HANDLER_RESULT_HANDLED;
 	}
@@ -197,6 +219,8 @@ bool media_control_init(struct media_control * mc, const char * device_path,
 		.ba_service = BLUEZ_SERVICE,
 	};
 
+	*mc = (struct media_control) { 0 };
+
 	DBusError error = DBUS_ERROR_INIT;
 	dbus_bool_t rv;
 
@@ -211,9 +235,11 @@ bool media_control_init(struct media_control * mc, const char * device_path,
 	if (!rv) {
 		debug("Failed to get media player: %s", error.message);
 		dbus_error_free(&error);
+		return rv;
 	}
 
-	mc->state = MEDIA_CONTROL_STATE_UNKNOWN;
+	if (mc->connected)
+		media_control_get_player_status(mc, conn);
 
 	return rv;
 }
@@ -243,33 +269,28 @@ dbus_bool_t media_control_dbus_add_signal_handler(struct ba_dbus_ctx * dbus_ctx)
 	return TRUE;
 }
 
-bool media_control_pause_player(const struct media_control * mc, DBusConnection * conn) {
+bool media_control_pause_player(struct media_control * mc, DBusConnection * conn) {
 
-	if (!mc->connected)
+	if (!mc->connected || mc->state != MEDIA_CONTROL_STATE_PAUSABLE)
 		return false;
 
-	DBusMessage * msg = NULL, * rep = NULL;
-	DBusError err = DBUS_ERROR_INIT;
+	DBusMessage * msg = NULL;
 	bool rv = true;
 
 	msg = dbus_message_new_method_call(BLUEZ_SERVICE, mc->player_path, BLUEZ_IFACE_MEDIAPLAYER,
 	                                   "Pause");
+	dbus_message_set_no_reply(msg, TRUE);
 
-	if (!dbus_connection_send(conn, msg, NULL)) {
-		warn("Couldn't pause player: %s", err.message);
-		dbus_error_free(&err);
-		goto fail;
+	if (dbus_connection_send(conn, msg, NULL)) {
+		mc->state = MEDIA_CONTROL_STATE_PAUSING;
+		debug("Paused player %s", mc->player_path);
+	}
+	else {
+		warn("Couldn't pause player: out of memory");
+		rv = false;
 	}
 
-	goto final;
-
-fail:
-	rv = false;
-
-final:
 	if (msg != NULL)
 		dbus_message_unref(msg);
-	if (rep != NULL)
-		dbus_message_unref(rep);
 	return rv;
 }

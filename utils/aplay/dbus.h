@@ -1,14 +1,32 @@
 /*
  * BlueALSA - dbus.h
- * SPDX-FileCopyrightText: 2016-2025 BlueALSA developers
+ * SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
  * SPDX-License-Identifier: MIT
  */
+
+#pragma once
 
 #ifndef BLUEALSA_APLAY_DBUS_H_
 #define BLUEALSA_APLAY_DBUS_H_
 
 #include <bluetooth/bluetooth.h>
 #include <dbus/dbus.h>
+
+#ifndef DBUS_IFACE_PROPERTIES
+# define DBUS_IFACE_PROPERTIES "org.freedesktop.DBus.Properties"
+#endif
+
+#ifndef BLUEZ_SERVICE
+# define BLUEZ_SERVICE "org.bluez"
+#endif
+
+#ifndef BLUEZ_IFACE_MEDIACONTROL
+# define BLUEZ_IFACE_MEDIACONTROL BLUEZ_SERVICE ".MediaControl1"
+#endif
+
+#ifndef BLUEZ_IFACE_MEDIAPLAYER
+# define BLUEZ_IFACE_MEDIAPLAYER BLUEZ_SERVICE ".MediaPlayer1"
+#endif
 
 struct bluez_device {
 
