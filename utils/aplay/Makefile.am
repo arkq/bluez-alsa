@@ -11,6 +11,7 @@ bluealsa_aplay_SOURCES = \
 	alsa-pcm.c \
 	dbus.c \
 	delay-report.c \
+	media-control.c \
 	aplay.c
 
 if WITH_LIBSAMPLERATE
