@@ -490,6 +490,37 @@ AC_ARG_WITH([bluealsaaplayuser],
 	[bluealsaaplayuser="root"])
 AC_SUBST([BLUEALSA_APLAY_USER], [$bluealsaaplayuser])
 
+# Check that the given user names are valid for systemd-sysusers.
+# See https://systemd.io/USER_NAMES/
+systemd_name_re=['[a-zA-Z_][a-zA-Z0-9_-]\{0,30\}$']
+AM_CONDITIONAL([BLUEALSAD_USER_INVALID],
+	[test `expr "$bluealsaduser" : "$systemd_name_re"` -ne "${#bluealsaduser}"])
+AM_CONDITIONAL([BLUEALSA_APLAY_USER_INVALID],
+	[test `expr "$bluealsaaplayuser" : "$systemd_name_re"` -ne "${#bluealsaaplayuser}"])
+AM_COND_IF([ENABLE_SYSTEMD], [
+	AM_COND_IF([BLUEALSAD_USER_INVALID],
+		[AC_MSG_ERROR(["'$bluealsaduser' is not a valid systemd user name"])])
+	AM_COND_IF([BLUEALSA_APLAY_USER_INVALID],
+		[AC_MSG_ERROR(["'$bluealsaaplayuser' is not a valid systemd user name"])])
+])
+
+# Determine whether a sysusers.d config file is required.
+AM_CONDITIONAL([WITH_SYSUSER_BLUEALSA],
+	[test "$bluealsaduser" -a "$bluealsaduser" != "root"])
+AM_CONDITIONAL(WITH_SYSUSER_BLUEALSA_APLAY,
+	[test "$bluealsaaplayuser" -a "$bluealsaaplayuser" != "root"])
+AM_COND_IF([ENABLE_SYSTEMD], [
+	AC_ARG_WITH([systemdsysusersdir],
+		AS_HELP_STRING([--with-systemdsysusersdir=DIR], [path to systemd sysusers files]),
+		AS_IF([test "x$withval" = "xyes" -o "x$withval" = "xno"],
+			[AC_MSG_ERROR([Option --with-systemdsysusersdir requires an argument])],
+			[systemdsysusersdir="${withval}"]),
+		[AM_COND_IF([ENABLE_SYSTEMD],
+			[systemdsysusersdir=$($PKG_CONFIG --variable=sysusersdir systemd)])
+		])
+	AC_SUBST([SYSTEMD_SYSUSERS_DIR], [$systemdsysusersdir])
+])
+
 AC_CONFIG_FILES([
 	Makefile
 	doc/Makefile

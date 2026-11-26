@@ -82,9 +82,10 @@ See the [systemd integration][] wiki page for more information.
 
 If intending to run the `bluealsad` daemon as a non-root user then it is
 recommended to use the `--with-bluealsaduser=USER` option as this will configure
-the BlueALSA D-Bus policy file with correct permissions for that user account,
-and also include that user in the systemd service unit file when used in
-combination with `--enable-systemd`.
+the BlueALSA D-Bus policy file with correct permissions for that user account.
+When used in combination with `--enable-systemd` then the installed systemd
+unit file will run `bluealsad` as USER, and a systemd-sysusers file is
+installed to create a system account for USER at boot.
 
 If not using systemd, then some manual setup of the host will be required, see
 [Runtime Environment](#runtime-environment) below.
@@ -153,7 +154,11 @@ sudo chmod 0700 /var/lib/bluealsa
 
 ### User accounts
 
-The BlueALSA installation does not create any user accounts.
+The BlueALSA installation does not create any user accounts, but when
+configured using `--enable-systemd` with `--with-bluealsaduser=` and/or
+`--with-bluealsaaplayuser=` then a `systemd-sysusers` configuration file is
+installed which creates system accounts for the given users at boot (if they do
+not already exist).
 
 ### D-Bus policy
 

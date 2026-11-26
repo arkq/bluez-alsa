@@ -1,0 +1,5 @@
+# BlueALSA - bluealsa-aplay-sysusers.conf.in
+# SPDX-FileCopyrightText: 2016-2026 BlueALSA developers
+# SPDX-License-Identifier: MIT
+u! @bluealsaaplayuser@ - "system user for bluealsa-aplay" /nonexistent
+m @bluealsaaplayuser@ audio
