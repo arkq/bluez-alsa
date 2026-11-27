@@ -7,6 +7,8 @@ SPDX-License-Identifier: MIT
 
 ## unreleased
 
+- install a systemd-sysusers file when non-root systemd accounts requested.
+
 ## bluez-alsa v5.0.0 (2026-08-27)
 
 - renamed bluealsa to bluealsad (no backward compatibility)
