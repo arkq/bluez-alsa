@@ -1378,7 +1378,16 @@ static int bluealsa_poll_revents(snd_pcm_ioplug_t * io, struct pollfd * pfd,
 	if (pfd[0].revents & POLLIN) {
 
 		eventfd_t event;
-		eventfd_read(pcm->event_fd, &event);
+		do
+			ret = eventfd_read(pcm->event_fd, &event);
+		while (ret == -1 && errno == EINTR);
+		if (ret == -1) {
+			const int err = errno;
+			if (!pcm->connected)
+				goto fail;
+			/* A non-blocking notification may already have been consumed. */
+			return err == EAGAIN ? 0 : -err;
+		}
 
 		if (event & 0xDEAD0000)
 			goto fail;
