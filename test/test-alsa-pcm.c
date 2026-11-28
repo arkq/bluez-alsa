@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/eventfd.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -1107,6 +1108,45 @@ CK_START_TEST(reference_playback_device_unplug) {
 }
 CK_END_TEST
 
+CK_START_TEST(ba_test_playback_poll_empty_event) {
+
+	if (pcm_device != NULL)
+		return;
+
+	unsigned int buffer_time = 200000;
+	unsigned int period_time = 25000;
+	struct spawn_process sp_ba_mock;
+	snd_pcm_t * pcm = NULL;
+	ck_assert_int_eq(test_pcm_open(&sp_ba_mock, &pcm, SND_PCM_STREAM_PLAYBACK), 0);
+	ck_assert_int_eq(set_hw_params(pcm, pcm_format, pcm_channels, pcm_rate,
+	                               &buffer_time, &period_time), 0);
+	ck_assert_int_eq(snd_pcm_prepare(pcm), 0);
+
+	struct pollfd pfds[4];
+	int nfds = snd_pcm_poll_descriptors(pcm, pfds, ARRAYSIZE(pfds));
+	ck_assert_int_gt(nfds, 0);
+	ck_assert_int_eq(eventfd_write(pfds[0].fd, 1), 0);
+	ck_assert_int_eq(poll(pfds, 1, 0), 1);
+	ck_assert_int_eq(pfds[0].revents, POLLIN);
+
+	/* Consume the notification before the plug-in processes the poll result. */
+	eventfd_t event;
+	ck_assert_int_eq(eventfd_read(pfds[0].fd, &event), 0);
+	unsigned short revents;
+	ck_assert_int_eq(snd_pcm_poll_descriptors_revents(pcm, pfds, nfds, &revents), 0);
+	ck_assert_uint_eq(revents, 0);
+	ck_assert_int_eq(snd_pcm_state(pcm), SND_PCM_STATE_PREPARED);
+
+	/* A successful read of a disconnect notification still reports an error. */
+	ck_assert_int_eq(eventfd_write(pfds[0].fd, 0xDEAD0000), 0);
+	ck_assert_int_eq(poll(pfds, 1, 0), 1);
+	ck_assert_int_eq(snd_pcm_poll_descriptors_revents(pcm, pfds, nfds, &revents), -ENODEV);
+	ck_assert_uint_eq(revents, POLLERR | POLLHUP);
+	ck_assert_int_eq(snd_pcm_state(pcm), SND_PCM_STATE_DISCONNECTED);
+	ck_assert_int_eq(test_pcm_close(&sp_ba_mock, pcm), 0);
+}
+CK_END_TEST
+
 CK_START_TEST(ba_test_playback_device_unplug) {
 
 	if (pcm_device != NULL)
@@ -1259,6 +1299,7 @@ int main(int argc, char * argv[]) {
 		tcase_add_test(tc, test_playback_pause);
 		tcase_add_test(tc, test_playback_reset);
 		tcase_add_test(tc, test_playback_underrun);
+		tcase_add_test(tc, ba_test_playback_poll_empty_event);
 		tcase_add_test(tc, ba_test_playback_device_unplug);
 		suite_add_tcase(s, tc);
 	}
